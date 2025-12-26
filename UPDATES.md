@@ -1,13 +1,22 @@
 # Updates Log
 
-## v1.1.0 - Robustness & AI Integration
+## v1.2.0 - Documentation Update
 **Status:** Current Release
+
+### Documentation
+- **Data Requirements**: Added `DATA_REQUIREMENTS.md` detailing the Firestore schema structure and the CSV file formats (`Q_*.csv` and `RawData_*.csv`) required for project initialization.
+
+---
+
+## v1.1.0 - Robustness & AI Integration
+**Status:** Released
 
 ### Features
 - **Mock Mode / Graceful Degradation**: 
   - Added detection for missing or invalid Firebase API keys.
   - The app now loads in a "Read-Only" state instead of crashing with `auth/invalid-api-key` errors.
   - Guest users are alerted when attempting to save data without valid configuration.
+  - **Demo Data Persistence**: In Mock mode, "Initialize Hub" now saves projects to local React state, allowing full UI testing without a database connection.
 - **Gemini 2.5 Integration**: 
   - Updated AI service to use `gemini-2.5-flash-preview-09-2025`.
   - Implemented `responseSchema` for strict JSON generation during event context analysis.

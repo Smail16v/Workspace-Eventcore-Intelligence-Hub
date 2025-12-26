@@ -1,0 +1,78 @@
+# Data Requirements & Specifications
+
+This document outlines the data structures, file formats, and schema requirements necessary for the Eventcore Intelligence Hub to function correctly.
+
+## 1. Project Metadata (Firestore)
+
+Projects are stored as documents in the Firestore database. This metadata drives the Workspace UI and configures the dashboard.
+
+**Collection Path:** `artifacts/{appId}/public/data/projects`
+
+| Field | Type | Required | Description | Example |
+| :--- | :--- | :--- | :--- | :--- |
+| `id` | String | Yes | Unique document ID (Auto-generated) | `7x8d9s0f...` |
+| `name` | String | Yes | Official name of the event | "US Open Tennis" |
+| `venue` | String | No | Primary location name | "Arthur Ashe Stadium" |
+| `location` | String | No | City, State, Country | "New York, NY • USA" |
+| `dates` | String | No | Human-readable date range | "AUG 26 - SEP 08" |
+| `year` | String | Yes | Event year for grouping | "2024" |
+| `promoter` | String | Yes | Organizer or sponsor entity | "USTA" |
+| `logoUrl` | String | No | Public URL or Base64 string of the logo | `https://...` |
+| `ownerId` | String | Yes | Firebase Auth UID of the creator | `user_123` |
+| `createdAt` | Number | Yes | Unix timestamp (ms) | `1715620000000` |
+| `updatedAt` | Number | No | Unix timestamp (ms) | `1715620000000` |
+
+---
+
+## 2. File Artifacts (CSV Datasets)
+
+To initialize a Hub, two specific CSV files must be uploaded. These files are processed to generate the analytics dashboard.
+
+### A. Schema CSV (Survey Definition)
+Defines the structure of the survey questions and variables.
+
+*   **Naming Convention:** `Q_{ProjectName}.csv` (e.g., `Q_US Open Tennis.csv`)
+*   **Format:** standard comma-separated values.
+*   **Required Columns:**
+
+| Column Header | Description |
+| :--- | :--- |
+| `Variable` | The unique ID for the data point (e.g., `Q1`, `gender`, `NPS_score`) |
+| `Label` | The full question text or description (e.g., "How likely are you to recommend...?") |
+| `Type` | Data type (e.g., `Single`, `Multi`, `Open`, `Number`) |
+| `Values` | (Optional) Pipe-separated list of valid options (e.g., `1=Yes|2=No`) |
+
+**Example Content:**
+```csv
+Variable,Label,Type,Values
+ID,Respondent ID,Text,
+Q1,Overall Satisfaction,Single,1=Very Dissatisfied|5=Very Satisfied
+Q2,Zip Code,Open,
+NPS_Group,NPS Category,Computed,Promoter|Passive|Detractor
+```
+
+### B. Responses CSV (Raw Data)
+Contains the raw survey responses collected from attendees.
+
+*   **Naming Convention:** `RawData_{ProjectName}.csv` (e.g., `RawData_US Open Tennis.csv`)
+*   **Format:** standard comma-separated values.
+*   **Structure:**
+    *   **Header Row:** Must exactly match the `Variable` column from the Schema CSV.
+    *   **Rows:** Each row represents one unique respondent/record.
+
+**Example Content:**
+```csv
+ID,Q1,Q2,NPS_Group
+1001,5,10012,Promoter
+1002,3,90210,Passive
+1003,5,,Promoter
+```
+
+---
+
+## 3. Branding Assets
+
+### Project Logo
+*   **Format:** PNG, JPG, or SVG (Transparent background recommended).
+*   **Aspect Ratio:** Square (1:1) is preferred for best display in cards.
+*   **Storage:** The application currently supports Base64 strings (for local demo) or public URLs (for production).
