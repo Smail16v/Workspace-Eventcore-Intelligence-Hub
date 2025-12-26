@@ -19,7 +19,8 @@ The application relies on global variables injected into the `window` object by 
 
 ### 1. Firebase Service (`services/firebase.ts`)
 - **Initialization**: Parses the global config.
-- **Mock Mode**: Implements a fail-safe mechanism. If configuration is missing or invalid, it sets a `isMock` flag to `true`. This prevents the app from crashing on load and allows for a "Read-Only / Guest" UI state.
+- **Authentication**: Strict enforcement. The app requires a valid Firebase configuration and a signed-in user to function.
+- **Auto-Healing**: Automatically ensures a User Profile exists in Firestore upon successful login to prevent synchronization issues.
 - **Exports**: `auth`, `db`, `appId`.
 
 ### 2. Gemini AI Service (`services/geminiService.ts`)
@@ -52,9 +53,10 @@ interface Project {
 
 1.  **`App.tsx` (Root Controller)**
     -   Manages global state: `user`, `projects` list, `loading`.
-    -   Handles Authentication (Anonymous vs Custom Token).
-    -   Sets up real-time Firestore listeners (`onSnapshot`).
-    -   Implements "Mock Mode" checks to skip Auth/DB calls if config is missing.
+    -   **Authentication Flow**:
+        -   Listens to `onAuthStateChanged`.
+        -   Forces the `AuthModal` if no user is present.
+        -   Loads data only after successful authentication.
     -   Handles Filter/Group logic (Memoized).
 
 2.  **`ProjectModal.tsx` (Editor)**
@@ -79,3 +81,26 @@ Refer to `GRAPHQL_GENERATION.md` for the Standard Operating Configuration (SOC) 
 ## State Management
 - Local React State (`useState`) is used for UI controls (Modals, View Modes, Search).
 - Firestore Real-time listeners act as the "Server State" manager, automatically syncing changes across clients.
+
+# Updates Log
+
+## v1.3.0 - Security & Auth Hardening
+**Status:** Current Release
+
+### Security
+- **Mandatory Authentication**: Removed all Guest/Demo access paths. The application now strictly requires a logged-in user to access any functionality.
+- **Role Management**: Removed "Role" selection from registration and profile forms. New users default to `venue_user`. Admin role escalation is now handled exclusively via backend database administration.
+- **Code Cleanup**: Removed legacy mock data generators and anonymous login logic.
+
+## v1.2.0 - Documentation Update
+**Status:** Released
+
+### Documentation
+- **Data Requirements**: Added `DATA_REQUIREMENTS.md` detailing the Firestore schema structure and the CSV file formats.
+
+## v1.1.0 - Robustness & AI Integration
+**Status:** Released
+
+### Features
+- **Gemini 2.5 Integration**: Updated AI service to use `gemini-2.5-flash-preview-09-2025`.
+- **Enhanced Error Handling**: Authentication failures no longer cause infinite loading loops.

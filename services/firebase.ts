@@ -32,23 +32,8 @@ try {
   console.warn("Failed to parse firebase config, using default", e);
 }
 
-export let isMock = false;
-
-// Fallback to prevent immediate crash if config is missing or invalid.
-// The 'auth/invalid-api-key' error occurs if apiKey is missing in the config.
-if (!firebaseConfig || !firebaseConfig.apiKey) {
-    console.info("Using mock Firebase config to prevent crash");
-    isMock = true;
-    firebaseConfig = {
-        apiKey: "mock-api-key",
-        authDomain: "mock.firebaseapp.com",
-        projectId: "mock-project",
-        storageBucket: "mock.appspot.com",
-        messagingSenderId: "000000000000",
-        appId: "1:000000000000:web:0000000000000000000000"
-    };
-}
-
+// Initialize Firebase
+// If config is missing or invalid, this might throw, enforcing valid credentials requirement.
 export const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
@@ -57,11 +42,6 @@ export const appId = typeof window.__app_id !== 'undefined' ? window.__app_id : 
 // --- Authentication Helpers ---
 
 export const registerUser = async (email: string, password: string, fullName: string, company: string, role: string) => {
-  if (isMock) {
-      console.log("Mock Registration:", { email, fullName, company, role });
-      return { success: true };
-  }
-
   try {
     // 1. Create the account
     const userCredential = await createUserWithEmailAndPassword(auth, email, password);
@@ -94,7 +74,7 @@ export const registerUser = async (email: string, password: string, fullName: st
 };
 
 export const ensureUserProfileExists = async (user: User) => {
-    if (isMock || !user) return;
+    if (!user) return;
     
     try {
         const userDocRef = doc(db, "users", user.uid);
@@ -117,7 +97,6 @@ export const ensureUserProfileExists = async (user: User) => {
 };
 
 export const loginUser = async (email: string, password: string) => {
-    if (isMock) return { success: true };
     try {
         const userCredential = await signInWithEmailAndPassword(auth, email, password);
         const user = userCredential.user;
@@ -143,7 +122,6 @@ export const loginUser = async (email: string, password: string) => {
 };
 
 export const resetPassword = async (email: string) => {
-  if (isMock) return { success: "Mock password reset email sent." };
   try {
     await sendPasswordResetEmail(auth, email);
     return { success: "Password reset email sent! Check your inbox." };
@@ -156,21 +134,12 @@ export const resetPassword = async (email: string) => {
 };
 
 export const logoutUser = async () => {
-    if (isMock) {
-        window.location.reload(); // Simple reload for mock
-        return;
-    }
     await signOut(auth);
 };
 
 // --- Profile Management ---
 
 export const subscribeToUserProfile = (uid: string, callback: (profile: UserProfile | null) => void) => {
-    if (isMock) {
-        callback({ uid: 'mock-uid', email: 'mock@example.com', fullName: 'Mock User', companyName: 'Mock Corp', role: 'admin', createdAt: Date.now() });
-        return () => {};
-    }
-
     const unsub = onSnapshot(doc(db, "users", uid), 
         (doc) => {
             if (doc.exists()) {
@@ -192,17 +161,11 @@ export const subscribeToUserProfile = (uid: string, callback: (profile: UserProf
 };
 
 export const updateUserProfile = async (uid: string, data: Partial<UserProfile>) => {
-    if (isMock) return;
     const userDocRef = doc(db, "users", uid);
     await updateDoc(userDocRef, data);
 };
 
 export const deleteUserAccount = async () => {
-    if (isMock) {
-        window.location.reload();
-        return;
-    }
-    
     const user = auth.currentUser;
     if (!user) return;
 

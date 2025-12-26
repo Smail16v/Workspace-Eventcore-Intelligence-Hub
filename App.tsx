@@ -5,14 +5,12 @@ import {
   Plus, 
   Search, 
   Filter,
-  Loader2,
-  AlertTriangle
+  Loader2
 } from 'lucide-react';
-import { onAuthStateChanged, signInAnonymously, signInWithCustomToken, User } from 'firebase/auth';
+import { onAuthStateChanged, signInWithCustomToken, User } from 'firebase/auth';
 import { collection, addDoc, onSnapshot, query, doc, updateDoc } from 'firebase/firestore';
 
-// Rename imported isMock to initialIsMock to allow local state override
-import { auth, db, appId, isMock as initialIsMock, subscribeToUserProfile, ensureUserProfileExists } from './services/firebase';
+import { auth, db, appId, subscribeToUserProfile, ensureUserProfileExists } from './services/firebase';
 import { Project, ViewMode, GroupBy, UserProfile } from './types';
 
 import Navbar from './components/Navbar';
@@ -39,9 +37,6 @@ export default function App() {
   const [searchTerm, setSearchTerm] = useState('');
   const [activeProject, setActiveProject] = useState<Project | null>(null);
   
-  // State to track if we are in Demo/Mock mode
-  const [isDemoMode, setIsDemoMode] = useState(initialIsMock);
-
   // Theme State
   const [theme, setTheme] = useState(() => {
     if (typeof window !== 'undefined') {
@@ -63,28 +58,14 @@ export default function App() {
 
   // Authentication Setup
   useEffect(() => {
-    if (initialIsMock) {
-      setLoading(false);
-      return;
-    }
-
     const initAuth = async () => {
       try {
         if (typeof window.__initial_auth_token !== 'undefined' && window.__initial_auth_token) {
           await signInWithCustomToken(auth, window.__initial_auth_token);
-        } else {
-          if (!auth.currentUser) {
-            await signInAnonymously(auth);
-          }
         }
       } catch (error: any) {
-        if (error.code === 'auth/admin-restricted-operation' || error.code === 'auth/operation-not-allowed') {
-             console.warn("Firebase Auth: Anonymous login disabled/restricted. Switching to Demo Mode.");
-             setIsDemoMode(true);
-        } else {
-             console.error("Authentication error:", error);
-        }
-        setLoading(false);
+         console.error("Authentication error:", error);
+         setLoading(false);
       }
     };
     
@@ -93,10 +74,14 @@ export default function App() {
       setUser(currentUser);
       
       // If a real user is detected
-      if (currentUser && !currentUser.isAnonymous) {
+      if (currentUser) {
          setAuthModalOpen(false);
          // Ensure profile exists (Auto-Heal for restored sessions)
          ensureUserProfileExists(currentUser);
+      } else {
+         setUserProfile(null);
+         // Strictly enforce auth modal when no user
+         setAuthModalOpen(true);
       }
     });
 
@@ -107,7 +92,7 @@ export default function App() {
 
   // User Profile Sync - Separated to handle cleanup correctly
   useEffect(() => {
-      if (!user || user.isAnonymous) {
+      if (!user) {
           setUserProfile(null);
           return;
       }
@@ -124,12 +109,6 @@ export default function App() {
 
   // Data Sync
   useEffect(() => {
-    // If in Demo Mode, do not attempt Firestore connection
-    if (isDemoMode) {
-      setLoading(false);
-      return;
-    }
-
     if (!user) {
         setProjects([]);
         setLoading(false);
@@ -154,20 +133,12 @@ export default function App() {
         } else {
              console.warn("Firestore permission denied (likely logout).");
         }
-        
-        if (err.code === 'permission-denied' && !user) {
-            // Ignore if user is null (logout)
-        } else if (err.code === 'permission-denied') {
-             // Real permission issue
-             console.warn("Permission denied. Switching to Demo Mode.");
-             setIsDemoMode(true);
-        }
         setLoading(false);
       }
     );
 
     return () => unsubscribeData();
-  }, [user, isDemoMode]);
+  }, [user]);
 
   // Filtering & Grouping
   const filteredProjects = useMemo(() => {
@@ -191,27 +162,6 @@ export default function App() {
 
   // Actions
   const handleSaveProject = async (data: Partial<Project>) => {
-    if (isDemoMode) {
-        await new Promise(resolve => setTimeout(resolve, 600));
-
-        if (modalState.project?.id) {
-             setProjects(prev => prev.map(p => 
-                p.id === modalState.project!.id ? { ...p, ...data, updatedAt: Date.now() } as Project : p
-             ));
-        } else {
-             const newProject = {
-                 id: `demo-${Date.now()}`,
-                 ownerId: 'guest-demo',
-                 createdAt: Date.now(),
-                 ...data
-             } as Project;
-             setProjects(prev => [newProject, ...prev]);
-        }
-        
-        setModalState({ isOpen: false, project: null });
-        return;
-    }
-
     if (!user) {
         setAuthModalOpen(true);
         return;
@@ -247,7 +197,9 @@ export default function App() {
     setModalState({ isOpen: true, project });
   };
 
-  if (loading && !user && !isDemoMode) {
+  // If loading and we have no user, we might be initializing auth. 
+  // But if auth is initialized and we have no user, the modal should be open (handled in render).
+  if (loading && user) {
     return (
       <div className="h-screen w-full flex items-center justify-center bg-slate-50 dark:bg-slate-900 transition-colors">
         <Loader2 className="w-10 h-10 text-blue-600 animate-spin" />
@@ -274,13 +226,6 @@ export default function App() {
         isDark={theme === 'dark'}
         toggleTheme={toggleTheme}
       />
-      
-      {isDemoMode && (
-        <div className="bg-amber-50 dark:bg-amber-900/20 border-b border-amber-200 dark:border-amber-800 px-6 py-2 text-xs font-bold text-amber-800 dark:text-amber-400 flex items-center justify-center gap-2">
-            <AlertTriangle className="w-3.5 h-3.5" />
-            <span>Running in Demo Mode. Data is stored locally and will be reset on refresh. {initialIsMock ? "Connect Firebase" : "Anonymous Auth Disabled"} for persistence.</span>
-        </div>
-      )}
 
       <main className="flex-1 p-6 md:p-10 max-w-7xl mx-auto w-full">
         {/* Header Section */}
@@ -381,6 +326,7 @@ export default function App() {
       {authModalOpen && (
         <AuthModal 
           onClose={() => setAuthModalOpen(false)} 
+          allowClose={!!user}
         />
       )}
 

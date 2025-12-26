@@ -38,7 +38,6 @@ service cloud.firestore {
     match /artifacts/{appId}/public/data/projects/{projectId} {
       
       // READ: Allow any authenticated user to view the project list.
-      // This is necessary for the workspace dashboard to load the list of projects.
       allow read: if isAuthenticated();
 
       // CREATE: Allow authenticated users to create projects.
@@ -61,17 +60,16 @@ service cloud.firestore {
 ## Explanation
 
 1.  **Users Collection (`/users/{userId}`)**:
-    *   **Issue**: The previous "Permission denied" error during login occurred because the app tries to `getDoc` or `setDoc` on the user's profile, but no rule allowed it.
-    *   **Fix**: The `isOwner(userId)` check ensures that `user_abc` can only access `/users/user_abc`.
+    *   **Privacy**: Users can only access their own profile data. This prevents user enumeration.
+    *   **Role Management**: The `role` field (e.g., `venue_user` vs `admin`) is stored here. Since users can write to their own profile, sensitive role escalations should be validated by backend triggers or handled by admins directly in the Firebase Console (the UI currently prevents editing the role).
 
 2.  **Projects Collection**:
-    *   **Issue**: The dashboard tries to load *all* projects via `onSnapshot`, which failed because default Firestore rules often block listing collections.
-    *   **Fix**: `allow read: if isAuthenticated()` grants access to the workspace data for any logged-in user.
-    *   **Security**: Write operations (Create/Update/Delete) are restricted. You cannot overwrite someone else's project unless you are the `ownerId` or an `admin`.
+    *   **Global Read**: `allow read: if isAuthenticated()` grants access to the workspace data for any logged-in user.
+    *   **Ownership**: Write operations (Create/Update/Delete) are restricted. You cannot overwrite someone else's project unless you are the `ownerId` or an `admin`.
 
 ## Troubleshooting
 
 If you still see "Missing or insufficient permissions":
 1.  **Wait**: Rules can take up to a minute to propagate after publishing.
-2.  **Check Auth**: Ensure the user is successfully logged in. If `request.auth` is null (e.g., during a race condition on load), the rules will reject the request.
-3.  **Indexes**: If you perform complex filtering (e.g., sorting by date *and* filtering by owner), Firestore might require a composite index. Check the "Indexes" tab in the Firebase Console for alerts.
+2.  **Check Auth**: Ensure the user is successfully logged in.
+3.  **Indexes**: If you perform complex filtering, Firestore might require a composite index. Check the "Indexes" tab in the Firebase Console.

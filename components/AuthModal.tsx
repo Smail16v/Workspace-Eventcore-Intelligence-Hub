@@ -1,13 +1,14 @@
 import React, { useState } from 'react';
-import { X, Mail, Lock, User, Building, Shield, ArrowRight, Loader2, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { X, Mail, Lock, User, Building, ArrowRight, Loader2, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { registerUser, loginUser, resetPassword } from '../services/firebase';
 
 interface AuthModalProps {
   onClose: () => void;
   defaultView?: 'login' | 'register';
+  allowClose?: boolean;
 }
 
-const AuthModal: React.FC<AuthModalProps> = ({ onClose, defaultView = 'login' }) => {
+const AuthModal: React.FC<AuthModalProps> = ({ onClose, defaultView = 'login', allowClose = true }) => {
   const [view, setView] = useState<'login' | 'register' | 'forgot'>(defaultView);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -19,7 +20,8 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, defaultView = 'login' })
   const [confirmPassword, setConfirmPassword] = useState('');
   const [fullName, setFullName] = useState('');
   const [company, setCompany] = useState('');
-  const [role, setRole] = useState('venue_user');
+  // Default role to venue_user, logic handled by admin later
+  const [role] = useState('venue_user');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -69,12 +71,14 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, defaultView = 'login' })
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={onClose}></div>
+      <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => allowClose && onClose()}></div>
       
       <div className="relative bg-white dark:bg-slate-900 w-full max-w-md rounded-[32px] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300 transition-colors">
-        <div className="absolute top-4 right-4 z-10">
-           <button onClick={onClose} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors"><X className="w-5 h-5 text-slate-400 dark:text-slate-500" /></button>
-        </div>
+        {allowClose && (
+            <div className="absolute top-4 right-4 z-10">
+               <button onClick={onClose} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors"><X className="w-5 h-5 text-slate-400 dark:text-slate-500" /></button>
+            </div>
+        )}
 
         <div className="p-8">
            <div className="mb-6 text-center">
@@ -112,13 +116,6 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, defaultView = 'login' })
                     <div className="relative">
                         <Building className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
                         <input type="text" placeholder="Company Name" value={company} onChange={e => setCompany(e.target.value)} className="w-full pl-9 pr-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500 transition-all font-bold text-slate-700 dark:text-white placeholder:font-medium dark:placeholder-slate-500" />
-                    </div>
-                    <div className="relative">
-                        <Shield className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
-                        <select value={role} onChange={e => setRole(e.target.value)} className="w-full pl-9 pr-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500 transition-all font-bold text-slate-700 dark:text-white appearance-none">
-                            <option value="venue_user">Venue User</option>
-                            <option value="admin">Eventcore Admin</option>
-                        </select>
                     </div>
                   </>
               )}

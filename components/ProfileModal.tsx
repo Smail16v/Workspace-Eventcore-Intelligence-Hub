@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, User, Building, Shield, Save, Loader2, Trash2, AlertTriangle, LogOut } from 'lucide-react';
+import { X, User, Building, Save, Loader2, Trash2 } from 'lucide-react';
 import { UserProfile } from '../types';
 import { updateUserProfile, deleteUserAccount, logoutUser } from '../services/firebase';
 
@@ -30,7 +30,9 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ profile, onClose }) => {
     e.preventDefault();
     setLoading(true);
     try {
-        await updateUserProfile(profile.uid, formData);
+        // Only update editable fields, exclude role
+        const { role, ...updateData } = formData;
+        await updateUserProfile(profile.uid, updateData);
         onClose();
     } catch (error) {
         console.error("Failed to update profile", error);
@@ -93,17 +95,6 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ profile, onClose }) => {
                     <div className="relative">
                         <Building className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
                         <input type="text" placeholder="Company Name" value={formData.companyName} onChange={e => setFormData({...formData, companyName: e.target.value})} className="w-full pl-9 pr-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500 transition-all font-bold text-slate-700 dark:text-white" />
-                    </div>
-                </div>
-
-                <div>
-                    <label className="block text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2 px-1">Role</label>
-                    <div className="relative">
-                        <Shield className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
-                        <select value={formData.role} onChange={e => setFormData({...formData, role: e.target.value})} className="w-full pl-9 pr-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500 transition-all font-bold text-slate-700 dark:text-white appearance-none">
-                            <option value="venue_user">Venue User</option>
-                            <option value="admin">Eventcore Admin</option>
-                        </select>
                     </div>
                 </div>
 

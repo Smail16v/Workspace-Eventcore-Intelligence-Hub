@@ -14,11 +14,9 @@ interface NavbarProps {
 }
 
 const Navbar: React.FC<NavbarProps> = ({ user, userProfile, onAuthClick, onProfileClick, isDark, toggleTheme }) => {
-  const isAnonymous = !user || user.isAnonymous;
-  
-  // Use profile data if available, fallback to Auth data, then default
-  const displayName = userProfile?.fullName || user?.displayName || user?.email || (user ? `User ${user.uid.substring(0, 5)}` : 'Guest');
-  const displayCompany = userProfile?.companyName || (isAnonymous ? 'Read Only Access' : 'Eventcore Member');
+  // Use profile data if available, fallback to Auth data
+  const displayName = userProfile?.fullName || user?.displayName || user?.email || 'Welcome';
+  const displayCompany = userProfile?.companyName || 'Eventcore Member';
 
   return (
     <nav className="h-16 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-6 flex items-center justify-between sticky top-0 z-30 transition-colors duration-300">
@@ -53,7 +51,7 @@ const Navbar: React.FC<NavbarProps> = ({ user, userProfile, onAuthClick, onProfi
            </p>
         </div>
         
-        {isAnonymous ? (
+        {!user ? (
            <button 
              onClick={onAuthClick}
              className="flex items-center gap-2 px-4 py-2 bg-slate-900 dark:bg-slate-800 text-white rounded-xl text-xs font-bold hover:bg-slate-800 dark:hover:bg-slate-700 transition-all shadow-md"
