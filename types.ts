@@ -12,6 +12,15 @@ export interface Project {
   updatedAt?: number;
 }
 
+export interface UserProfile {
+  uid: string;
+  email: string;
+  fullName: string;
+  companyName: string;
+  role: string;
+  createdAt: number;
+}
+
 export type ViewMode = 'grid' | 'list';
 export type GroupBy = 'none' | 'year' | 'promoter' | 'location' | 'venue';
 

@@ -12,8 +12,8 @@ import { onAuthStateChanged, signInAnonymously, signInWithCustomToken, User } fr
 import { collection, addDoc, onSnapshot, query, doc, updateDoc } from 'firebase/firestore';
 
 // Rename imported isMock to initialIsMock to allow local state override
-import { auth, db, appId, isMock as initialIsMock } from './services/firebase';
-import { Project, ViewMode, GroupBy } from './types';
+import { auth, db, appId, isMock as initialIsMock, subscribeToUserProfile, ensureUserProfileExists } from './services/firebase';
+import { Project, ViewMode, GroupBy, UserProfile } from './types';
 
 import Navbar from './components/Navbar';
 import ProjectCard from './components/ProjectCard';
@@ -21,20 +21,25 @@ import ProjectModal from './components/ProjectModal';
 import ProjectDashboard from './components/ProjectDashboard';
 import EmptyState from './components/EmptyState';
 import AuthModal from './components/AuthModal';
+import ProfileModal from './components/ProfileModal';
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
+  
+  // Modals
   const [modalState, setModalState] = useState<{ isOpen: boolean; project: Project | null }>({ isOpen: false, project: null });
-  // Set default to true so users land on the sign-in page first
   const [authModalOpen, setAuthModalOpen] = useState(true);
+  const [profileModalOpen, setProfileModalOpen] = useState(false);
+  
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
   const [groupBy, setGroupBy] = useState<GroupBy>('none');
   const [searchTerm, setSearchTerm] = useState('');
   const [activeProject, setActiveProject] = useState<Project | null>(null);
   
-  // State to track if we are in Demo/Mock mode (either forced by config or fallback on error)
+  // State to track if we are in Demo/Mock mode
   const [isDemoMode, setIsDemoMode] = useState(initialIsMock);
 
   // Theme State
@@ -56,9 +61,8 @@ export default function App() {
 
   const toggleTheme = () => setTheme(prev => prev === 'dark' ? 'light' : 'dark');
 
-  // Authentication
+  // Authentication Setup
   useEffect(() => {
-    // If we start in mock mode (no valid config), skip auth.
     if (initialIsMock) {
       setLoading(false);
       return;
@@ -69,22 +73,17 @@ export default function App() {
         if (typeof window.__initial_auth_token !== 'undefined' && window.__initial_auth_token) {
           await signInWithCustomToken(auth, window.__initial_auth_token);
         } else {
-          // Only sign in anonymously if there is no current user
           if (!auth.currentUser) {
             await signInAnonymously(auth);
           }
         }
       } catch (error: any) {
-        // Handle specific auth restrictions by falling back to demo mode silently
         if (error.code === 'auth/admin-restricted-operation' || error.code === 'auth/operation-not-allowed') {
              console.warn("Firebase Auth: Anonymous login disabled/restricted. Switching to Demo Mode.");
              setIsDemoMode(true);
         } else {
-             // Log genuine errors
              console.error("Authentication error:", error);
         }
-        
-        // Stop loading to show UI (either authenticated or demo)
         setLoading(false);
       }
     };
@@ -93,15 +92,11 @@ export default function App() {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
       
-      // If a real (non-anonymous) user is detected, auto-close the modal.
-      // Otherwise, keep it open (default state) to prompt sign-in/registration.
+      // If a real user is detected
       if (currentUser && !currentUser.isAnonymous) {
          setAuthModalOpen(false);
-      }
-
-      if (!currentUser) {
-         // Optionally trigger anonymous auth again if logged out? 
-         // For now, let's leave them as null (Navbar handles "Sign In" state)
+         // Ensure profile exists (Auto-Heal for restored sessions)
+         ensureUserProfileExists(currentUser);
       }
     });
 
@@ -109,6 +104,23 @@ export default function App() {
 
     return () => unsubscribe();
   }, []);
+
+  // User Profile Sync - Separated to handle cleanup correctly
+  useEffect(() => {
+      if (!user || user.isAnonymous) {
+          setUserProfile(null);
+          return;
+      }
+
+      // Subscribe to profile changes
+      const unsubscribeProfile = subscribeToUserProfile(user.uid, (profile) => {
+          setUserProfile(profile);
+      });
+
+      return () => {
+          unsubscribeProfile();
+      };
+  }, [user]);
 
   // Data Sync
   useEffect(() => {
@@ -119,8 +131,6 @@ export default function App() {
     }
 
     if (!user) {
-        // If not logged in, we might still want to show loading or empty?
-        // Let's assume public read or just empty list if no user
         setProjects([]);
         setLoading(false);
         return;
@@ -138,11 +148,19 @@ export default function App() {
         setLoading(false);
       }, 
       (err) => {
-        console.error("Firestore access error:", err);
-        // If Firestore fails (e.g. rules), fall back to demo mode as well
-        if (err.code === 'permission-denied') {
-            console.warn("Permission denied. Switching to Demo Mode.");
-            setIsDemoMode(true);
+        // Only log error if not a permission denied caused by logout race condition
+        if (err.code !== 'permission-denied') {
+             console.error("Firestore access error:", err);
+        } else {
+             console.warn("Firestore permission denied (likely logout).");
+        }
+        
+        if (err.code === 'permission-denied' && !user) {
+            // Ignore if user is null (logout)
+        } else if (err.code === 'permission-denied') {
+             // Real permission issue
+             console.warn("Permission denied. Switching to Demo Mode.");
+             setIsDemoMode(true);
         }
         setLoading(false);
       }
@@ -173,18 +191,14 @@ export default function App() {
 
   // Actions
   const handleSaveProject = async (data: Partial<Project>) => {
-    // 1. MOCK / DEMO MODE HANDLER
     if (isDemoMode) {
-        // Simulate network delay for realism
         await new Promise(resolve => setTimeout(resolve, 600));
 
         if (modalState.project?.id) {
-             // Update existing project in local state
              setProjects(prev => prev.map(p => 
                 p.id === modalState.project!.id ? { ...p, ...data, updatedAt: Date.now() } as Project : p
              ));
         } else {
-             // Create new project in local state
              const newProject = {
                  id: `demo-${Date.now()}`,
                  ownerId: 'guest-demo',
@@ -198,9 +212,7 @@ export default function App() {
         return;
     }
 
-    // 2. FIREBASE MODE HANDLER
     if (!user) {
-        // If trying to save while logged out (rare if we have anonymous, but possible)
         setAuthModalOpen(true);
         return;
     }
@@ -256,7 +268,9 @@ export default function App() {
     <div className="min-h-screen bg-[#F8FAFC] dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans flex flex-col transition-colors duration-300">
       <Navbar 
         user={user} 
+        userProfile={userProfile}
         onAuthClick={() => setAuthModalOpen(true)} 
+        onProfileClick={() => setProfileModalOpen(true)}
         isDark={theme === 'dark'}
         toggleTheme={toggleTheme}
       />
@@ -367,6 +381,13 @@ export default function App() {
       {authModalOpen && (
         <AuthModal 
           onClose={() => setAuthModalOpen(false)} 
+        />
+      )}
+
+      {profileModalOpen && userProfile && (
+        <ProfileModal 
+          profile={userProfile}
+          onClose={() => setProfileModalOpen(false)}
         />
       )}
     </div>

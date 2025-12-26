@@ -1,17 +1,24 @@
 import React from 'react';
-import { Globe, User, LogOut, LogIn, Sun, Moon } from 'lucide-react';
+import { Globe, User, LogOut, LogIn, Sun, Moon, Settings } from 'lucide-react';
 import { User as FirebaseUser } from 'firebase/auth';
 import { logoutUser } from '../services/firebase';
+import { UserProfile } from '../types';
 
 interface NavbarProps {
   user: FirebaseUser | null;
+  userProfile: UserProfile | null;
   onAuthClick: () => void;
+  onProfileClick: () => void;
   isDark: boolean;
   toggleTheme: () => void;
 }
 
-const Navbar: React.FC<NavbarProps> = ({ user, onAuthClick, isDark, toggleTheme }) => {
+const Navbar: React.FC<NavbarProps> = ({ user, userProfile, onAuthClick, onProfileClick, isDark, toggleTheme }) => {
   const isAnonymous = !user || user.isAnonymous;
+  
+  // Use profile data if available, fallback to Auth data, then default
+  const displayName = userProfile?.fullName || user?.displayName || user?.email || (user ? `User ${user.uid.substring(0, 5)}` : 'Guest');
+  const displayCompany = userProfile?.companyName || (isAnonymous ? 'Read Only Access' : 'Eventcore Member');
 
   return (
     <nav className="h-16 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-6 flex items-center justify-between sticky top-0 z-30 transition-colors duration-300">
@@ -39,10 +46,10 @@ const Navbar: React.FC<NavbarProps> = ({ user, onAuthClick, isDark, toggleTheme 
 
         <div className="text-right hidden sm:block">
            <p className="text-xs font-bold leading-none text-slate-700 dark:text-slate-200">
-             {isAnonymous ? 'Guest User' : (user.displayName || user.email || `User ${user.uid.substring(0, 5)}`)}
+             {displayName}
            </p>
            <p className="text-[10px] text-slate-400 dark:text-slate-500 uppercase font-bold tracking-tighter">
-             {isAnonymous ? 'Read Only Access' : 'Eventcore Member'}
+             {displayCompany}
            </p>
         </div>
         
@@ -55,7 +62,11 @@ const Navbar: React.FC<NavbarProps> = ({ user, onAuthClick, isDark, toggleTheme 
            </button>
         ) : (
            <div className="flex items-center gap-2">
-             <div className="w-9 h-9 rounded-full bg-slate-100 dark:bg-slate-800 border-2 border-white dark:border-slate-700 shadow-sm flex items-center justify-center overflow-hidden">
+             <div 
+                onClick={onProfileClick}
+                className="w-9 h-9 rounded-full bg-slate-100 dark:bg-slate-800 border-2 border-white dark:border-slate-700 shadow-sm flex items-center justify-center overflow-hidden cursor-pointer hover:border-blue-400 dark:hover:border-blue-500 transition-colors"
+                title="Edit Profile"
+             >
                 <User className="w-5 h-5 text-slate-400 dark:text-slate-400" />
              </div>
              <button 

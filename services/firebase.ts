@@ -5,9 +5,12 @@ import {
   signInWithEmailAndPassword, 
   sendPasswordResetEmail, 
   sendEmailVerification,
-  signOut 
+  signOut,
+  deleteUser,
+  User
 } from 'firebase/auth';
-import { getFirestore, doc, setDoc } from 'firebase/firestore';
+import { getFirestore, doc, setDoc, getDoc, updateDoc, deleteDoc, onSnapshot } from 'firebase/firestore';
+import { UserProfile } from '../types';
 
 // Default configuration provided
 const defaultFirebaseConfig = {
@@ -66,6 +69,7 @@ export const registerUser = async (email: string, password: string, fullName: st
 
     // 2. Save the extra info (Company, Role, etc.) to Firestore
     await setDoc(doc(db, "users", user.uid), {
+      uid: user.uid,
       fullName: fullName,
       companyName: company,
       role: role, // 'admin' or 'venue_user'
@@ -89,16 +93,43 @@ export const registerUser = async (email: string, password: string, fullName: st
   }
 };
 
+export const ensureUserProfileExists = async (user: User) => {
+    if (isMock || !user) return;
+    
+    try {
+        const userDocRef = doc(db, "users", user.uid);
+        const userSnapshot = await getDoc(userDocRef);
+
+        if (!userSnapshot.exists()) {
+            console.log("Healing: Creating missing Firestore profile for user", user.uid);
+            await setDoc(userDocRef, {
+                uid: user.uid,
+                email: user.email || "",
+                fullName: user.displayName || "User",
+                companyName: "Unassigned",
+                role: "venue_user",
+                createdAt: Date.now()
+            }, { merge: true });
+        }
+    } catch (e) {
+        console.warn("Failed to ensure user profile exists:", e);
+    }
+};
+
 export const loginUser = async (email: string, password: string) => {
     if (isMock) return { success: true };
     try {
         const userCredential = await signInWithEmailAndPassword(auth, email, password);
-        
+        const user = userCredential.user;
+
         // Check if email is verified
-        if (!userCredential.user.emailVerified) {
+        if (!user.emailVerified) {
             await signOut(auth); // Log them out immediately
             return { error: "Email not verified. Please check your inbox and click the verification link." };
         }
+
+        // --- Sync Logic: Ensure Firestore Document Exists ---
+        await ensureUserProfileExists(user);
 
         return { success: true };
     } catch (error: any) {
@@ -130,4 +161,59 @@ export const logoutUser = async () => {
         return;
     }
     await signOut(auth);
+};
+
+// --- Profile Management ---
+
+export const subscribeToUserProfile = (uid: string, callback: (profile: UserProfile | null) => void) => {
+    if (isMock) {
+        callback({ uid: 'mock-uid', email: 'mock@example.com', fullName: 'Mock User', companyName: 'Mock Corp', role: 'admin', createdAt: Date.now() });
+        return () => {};
+    }
+
+    const unsub = onSnapshot(doc(db, "users", uid), 
+        (doc) => {
+            if (doc.exists()) {
+                callback(doc.data() as UserProfile);
+            } else {
+                callback(null);
+            }
+        },
+        (error) => {
+            // Suppress "Missing or insufficient permissions" error logging if expected (e.g. during logout)
+            // The logic in App.tsx should prevent this, but this is a failsafe.
+            if (error.code !== 'permission-denied') {
+                console.error("Error subscribing to user profile:", error);
+            }
+            callback(null);
+        }
+    );
+    return unsub;
+};
+
+export const updateUserProfile = async (uid: string, data: Partial<UserProfile>) => {
+    if (isMock) return;
+    const userDocRef = doc(db, "users", uid);
+    await updateDoc(userDocRef, data);
+};
+
+export const deleteUserAccount = async () => {
+    if (isMock) {
+        window.location.reload();
+        return;
+    }
+    
+    const user = auth.currentUser;
+    if (!user) return;
+
+    try {
+        // 1. Delete Firestore Document
+        await deleteDoc(doc(db, "users", user.uid));
+        
+        // 2. Delete Auth User
+        await deleteUser(user);
+    } catch (error) {
+        console.error("Error deleting account:", error);
+        throw error;
+    }
 };
