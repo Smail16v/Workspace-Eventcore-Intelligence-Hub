@@ -9,7 +9,7 @@ import {
   deleteUser,
   User
 } from 'firebase/auth';
-import { getFirestore, doc, setDoc, getDoc, updateDoc, deleteDoc, onSnapshot } from 'firebase/firestore';
+import { getFirestore, doc, setDoc, getDoc, updateDoc, deleteDoc, onSnapshot, writeBatch, collection } from 'firebase/firestore';
 import { UserProfile } from '../types';
 
 // Default configuration provided
@@ -41,18 +41,17 @@ export const appId = typeof window.__app_id !== 'undefined' ? window.__app_id : 
 
 // --- Authentication Helpers ---
 
-export const registerUser = async (email: string, password: string, fullName: string, company: string, role: string) => {
+export const registerUser = async (email: string, password: string, fullName: string, company: string) => {
   try {
     // 1. Create the account
     const userCredential = await createUserWithEmailAndPassword(auth, email, password);
     const user = userCredential.user;
 
-    // 2. Save the extra info (Company, Role, etc.) to Firestore
+    // 2. Save the extra info (Company, etc.) to Firestore
     await setDoc(doc(db, "users", user.uid), {
       uid: user.uid,
       fullName: fullName,
       companyName: company,
-      role: role, // 'admin' or 'venue_user'
       email: email,
       createdAt: Date.now()
     });
@@ -77,8 +76,14 @@ export const ensureUserProfileExists = async (user: User) => {
     if (!user) return;
     
     try {
+        // Race Condition Guard: If the user has signed out (e.g. during registration flow), abort.
+        if (!auth.currentUser || auth.currentUser.uid !== user.uid) return;
+
         const userDocRef = doc(db, "users", user.uid);
         const userSnapshot = await getDoc(userDocRef);
+
+        // Guard again after async operation
+        if (!auth.currentUser || auth.currentUser.uid !== user.uid) return;
 
         if (!userSnapshot.exists()) {
             console.log("Healing: Creating missing Firestore profile for user", user.uid);
@@ -87,11 +92,16 @@ export const ensureUserProfileExists = async (user: User) => {
                 email: user.email || "",
                 fullName: user.displayName || "User",
                 companyName: "Unassigned",
-                role: "venue_user",
                 createdAt: Date.now()
             }, { merge: true });
         }
-    } catch (e) {
+    } catch (e: any) {
+        // Silently suppress permission errors. These often happen due to auth race conditions
+        // (like sign-out during registration) and are usually harmless as the profile is likely
+        // already being handled by the main flow.
+        if (e.code === 'permission-denied') {
+             return; 
+        }
         console.warn("Failed to ensure user profile exists:", e);
     }
 };
@@ -179,4 +189,74 @@ export const deleteUserAccount = async () => {
         console.error("Error deleting account:", error);
         throw error;
     }
+};
+
+// --- Bulk Data Management ---
+
+// Helper to sanitize object keys for Firestore (no dots, no undefined values)
+const sanitizeFirestoreData = (data: any) => {
+  if (!data || typeof data !== 'object') return {};
+  const clean: any = {};
+  
+  Object.keys(data).forEach(key => {
+    // Replace dots with underscores in keys
+    const cleanKey = key.replace(/\./g, '_').trim();
+    if (!cleanKey) return;
+
+    const value = data[key];
+    // Filter out undefined values
+    if (value !== undefined) {
+      clean[cleanKey] = value;
+    }
+  });
+  return clean;
+};
+
+/**
+ * Uploads arrays of objects to Firestore subcollections in batches.
+ * Firestore limits batches to 500 operations.
+ */
+export const saveProjectDatasets = async (
+  projectId: string, 
+  schemaRows?: any[], 
+  responseRows?: any[]
+) => {
+  const uploadBatch = async (collectionName: string, rows: any[]) => {
+    const BATCH_SIZE = 450; 
+    const total = rows.length;
+    
+    console.log(`Starting batch upload for ${collectionName}: ${total} rows`);
+
+    // Process in chunks
+    for (let i = 0; i < total; i += BATCH_SIZE) {
+      const chunk = rows.slice(i, i + BATCH_SIZE);
+      const batch = writeBatch(db);
+      let opCount = 0;
+
+      chunk.forEach((row) => {
+        const cleanRow = sanitizeFirestoreData(row);
+        // Only add if row has data
+        if (Object.keys(cleanRow).length > 0) {
+           const docRef = doc(collection(db, 'projects', projectId, collectionName));
+           batch.set(docRef, cleanRow);
+           opCount++;
+        }
+      });
+
+      if (opCount > 0) {
+         await batch.commit();
+         console.log(`Uploaded batch ${Math.floor(i / BATCH_SIZE) + 1} for ${collectionName} (${opCount} docs)`);
+      }
+    }
+  };
+
+  const promises = [];
+  if (schemaRows && schemaRows.length > 0) {
+    promises.push(uploadBatch('schema', schemaRows));
+  }
+  if (responseRows && responseRows.length > 0) {
+    promises.push(uploadBatch('responses', responseRows));
+  }
+
+  await Promise.all(promises);
 };

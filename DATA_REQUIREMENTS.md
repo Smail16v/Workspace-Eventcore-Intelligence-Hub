@@ -6,7 +6,7 @@ This document outlines the data structures, file formats, and schema requirement
 
 Projects are stored as documents in the Firestore database. This metadata drives the Workspace UI and configures the dashboard.
 
-**Collection Path:** `artifacts/{appId}/public/data/projects`
+**Collection Path:** `projects` (Root Collection)
 
 | Field | Type | Required | Description | Example |
 | :--- | :--- | :--- | :--- | :--- |
@@ -26,7 +26,7 @@ Projects are stored as documents in the Firestore database. This metadata drives
 
 ## 2. User Profile (Firestore)
 
-User profiles are strictly one-to-one with Firebase Auth accounts. They are created during registration and used to manage access control levels.
+User profiles are strictly one-to-one with Firebase Auth accounts. They are created during registration and used to manage personal details.
 
 **Collection Path:** `users`
 **Document ID:** `{userId}` (Matches Firebase Auth UID)
@@ -37,7 +37,6 @@ User profiles are strictly one-to-one with Firebase Auth accounts. They are crea
 | `email` | String | Yes | User's email address | `jane@example.com` |
 | `fullName` | String | Yes | Display Name | "Jane Doe" |
 | `companyName` | String | Yes | Organization Name | "Eventcore Inc" |
-| `role` | String | Yes | Access Level. Defaults to `venue_user`. | `venue_user`, `admin` |
 | `createdAt` | Number | Yes | Unix timestamp (ms) | `1715620000000` |
 
 ---

@@ -20,8 +20,6 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, defaultView = 'login', a
   const [confirmPassword, setConfirmPassword] = useState('');
   const [fullName, setFullName] = useState('');
   const [company, setCompany] = useState('');
-  // Default role to venue_user, logic handled by admin later
-  const [role] = useState('venue_user');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -47,7 +45,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, defaultView = 'login', a
             throw new Error("Password must be at least 6 characters.");
         }
 
-        const res = await registerUser(email, password, fullName, company, role);
+        const res = await registerUser(email, password, fullName, company);
         if (res.error) throw new Error(res.error);
         
         // On successful register, switch to login and show success message about verification

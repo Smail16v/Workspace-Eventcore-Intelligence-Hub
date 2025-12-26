@@ -10,7 +10,7 @@ import {
 import { onAuthStateChanged, signInWithCustomToken, User } from 'firebase/auth';
 import { collection, addDoc, onSnapshot, query, doc, updateDoc } from 'firebase/firestore';
 
-import { auth, db, appId, subscribeToUserProfile, ensureUserProfileExists } from './services/firebase';
+import { auth, db, appId, subscribeToUserProfile, ensureUserProfileExists, saveProjectDatasets } from './services/firebase';
 import { Project, ViewMode, GroupBy, UserProfile } from './types';
 
 import Navbar from './components/Navbar';
@@ -116,8 +116,8 @@ export default function App() {
     }
 
     setLoading(true);
-    // Path: artifacts/{appId}/public/data/projects
-    const projectsRef = collection(db, 'artifacts', appId, 'public', 'data', 'projects');
+    // SIMPLIFIED PATH: Root 'projects' collection
+    const projectsRef = collection(db, 'projects');
     const q = query(projectsRef);
 
     const unsubscribeData = onSnapshot(q, 
@@ -161,34 +161,55 @@ export default function App() {
   }, [filteredProjects, groupBy]);
 
   // Actions
-  const handleSaveProject = async (data: Partial<Project>) => {
+  const handleSaveProject = async (data: Partial<Project>, schemaData?: any[], responsesData?: any[]) => {
     if (!user) {
         setAuthModalOpen(true);
         return;
     }
 
-    const projectsRef = collection(db, 'artifacts', appId, 'public', 'data', 'projects');
+    // SIMPLIFIED PATH: Root 'projects' collection
+    const projectsRef = collection(db, 'projects');
     
+    // Sanitize data: Firestore throws error if 'undefined' is passed as a value.
+    const cleanData = Object.fromEntries(
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      Object.entries(data).filter(([_, v]) => v !== undefined)
+    );
+
     try {
-      if (modalState.project?.id) {
+      let projectId = modalState.project?.id;
+
+      if (projectId) {
         // Update
-        const projectDoc = doc(db, 'artifacts', appId, 'public', 'data', 'projects', modalState.project.id);
+        const projectDoc = doc(db, 'projects', projectId);
         await updateDoc(projectDoc, {
-          ...data,
+          ...cleanData,
           updatedAt: Date.now()
         });
       } else {
         // Create
-        await addDoc(projectsRef, {
-          ...data,
+        const docRef = await addDoc(projectsRef, {
+          ...cleanData,
           createdAt: Date.now(),
           ownerId: user.uid
         });
+        projectId = docRef.id;
       }
+
+      // Save Datasets if provided
+      if (schemaData || responsesData) {
+          await saveProjectDatasets(projectId, schemaData, responsesData);
+      }
+
       setModalState({ isOpen: false, project: null });
-    } catch (e) {
+    } catch (e: any) {
       console.error("Error saving project:", e);
-      alert("Failed to save project. Check your connection.");
+      if (e.code === 'permission-denied') {
+          alert("Permission Denied: Please update your Firestore Rules in the Firebase Console to allow access to the 'projects' collection.");
+      } else {
+          const msg = e.message || "Unknown error";
+          alert(`Failed to save project. ${msg}`);
+      }
     }
   };
 

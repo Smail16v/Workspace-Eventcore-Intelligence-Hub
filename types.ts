@@ -17,7 +17,6 @@ export interface UserProfile {
   email: string;
   fullName: string;
   companyName: string;
-  role: string;
   createdAt: number;
 }
 

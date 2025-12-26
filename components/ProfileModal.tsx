@@ -12,16 +12,14 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ profile, onClose }) => {
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState<Partial<UserProfile>>({
     fullName: '',
-    companyName: '',
-    role: 'venue_user'
+    companyName: ''
   });
 
   useEffect(() => {
     if (profile) {
         setFormData({
             fullName: profile.fullName || '',
-            companyName: profile.companyName || '',
-            role: profile.role || 'venue_user'
+            companyName: profile.companyName || ''
         });
     }
   }, [profile]);
@@ -30,9 +28,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ profile, onClose }) => {
     e.preventDefault();
     setLoading(true);
     try {
-        // Only update editable fields, exclude role
-        const { role, ...updateData } = formData;
-        await updateUserProfile(profile.uid, updateData);
+        await updateUserProfile(profile.uid, formData);
         onClose();
     } catch (error) {
         console.error("Failed to update profile", error);

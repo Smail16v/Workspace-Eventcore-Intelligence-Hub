@@ -32,7 +32,7 @@ The application relies on global variables injected into the `window` object by 
     - Includes fallback logic for demo purposes if the API key is invalid or quota is exceeded.
 
 ## Data Model (Firestore)
-**Path:** `artifacts/{appId}/public/data/projects/{projectId}`
+**Path:** `projects/{projectId}`
 
 **Schema:**
 ```typescript
@@ -84,23 +84,29 @@ Refer to `GRAPHQL_GENERATION.md` for the Standard Operating Configuration (SOC) 
 
 # Updates Log
 
-## v1.3.0 - Security & Auth Hardening
+## v1.4.1 - Database Simplification
 **Status:** Current Release
 
+### Data
+- **Path Update**: Simplified project storage from `artifacts/{appId}/public/data/projects` to a root-level `projects` collection. This improves visibility in the Firebase Console and simplifies security rules.
+
+## v1.4.0 - Access Control Simplification
+**Status:** Released
+
 ### Security
-- **Mandatory Authentication**: Removed all Guest/Demo access paths. The application now strictly requires a logged-in user to access any functionality.
-- **Role Management**: Removed "Role" selection from registration and profile forms. New users default to `venue_user`. Admin role escalation is now handled exclusively via backend database administration.
-- **Code Cleanup**: Removed legacy mock data generators and anonymous login logic.
+- **Open Access Model**: Removed Role-Based Access Control (RBAC).
+- **Collaborative Editing**: All authenticated users now have full read/write access to the project workspace.
+- **Data Model**: Removed `role` field from User Profile.
+
+## v1.3.0 - Security & Auth Hardening
+**Status:** Released
+
+### Security
+- **Mandatory Authentication**: Removed all Guest/Demo access paths.
+- **Role Management**: Removed "Role" selection from registration forms.
 
 ## v1.2.0 - Documentation Update
 **Status:** Released
 
 ### Documentation
-- **Data Requirements**: Added `DATA_REQUIREMENTS.md` detailing the Firestore schema structure and the CSV file formats.
-
-## v1.1.0 - Robustness & AI Integration
-**Status:** Released
-
-### Features
-- **Gemini 2.5 Integration**: Updated AI service to use `gemini-2.5-flash-preview-09-2025`.
-- **Enhanced Error Handling**: Authentication failures no longer cause infinite loading loops.
+- **Data Requirements**: Added `DATA_REQUIREMENTS.md` detailing the Firestore schema structure.

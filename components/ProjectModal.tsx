@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { X, ImageIcon, Plus, Sparkles, Link as LinkIcon, Loader2, FileSpreadsheet, FileCheck, Upload, AlertCircle, CheckCircle2, ArrowRight, RefreshCw, DownloadCloud, AlertTriangle } from 'lucide-react';
+import Papa from 'papaparse';
 import { Project } from '../types';
 import { analyzeEventContext } from '../services/geminiService';
 import { listSurveys, importSurveyData, QualtricsSurvey } from '../services/qualtricsService';
@@ -7,7 +8,7 @@ import { listSurveys, importSurveyData, QualtricsSurvey } from '../services/qual
 interface ProjectModalProps {
   project: Project | null;
   onClose: () => void;
-  onSave: (data: Partial<Project>) => Promise<void>;
+  onSave: (data: Partial<Project>, schemaData?: any[], responsesData?: any[]) => Promise<void>;
 }
 
 const ProjectModal: React.FC<ProjectModalProps> = ({ project, onClose, onSave }) => {
@@ -16,6 +17,7 @@ const ProjectModal: React.FC<ProjectModalProps> = ({ project, onClose, onSave })
   const [analyzing, setAnalyzing] = useState(false);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
   const [importMode, setImportMode] = useState<'ai' | 'qualtrics'>('ai');
+  const [saving, setSaving] = useState(false);
   
   // Qualtrics State
   const [surveys, setSurveys] = useState<QualtricsSurvey[]>([]);
@@ -93,8 +95,8 @@ const ProjectModal: React.FC<ProjectModalProps> = ({ project, onClose, onSave })
           setSelectedFiles({ schema: schemaFile, responses: responsesFile });
           setUploadedFiles({ schema: true, responses: true });
           
-          // Automatically save and initialize the hub
-          await onSave(finalData);
+          // Automatically trigger save flow
+          await handleSaveInternal(finalData, schemaFile, responsesFile);
           
       } catch (e) {
           console.error("Import failed", e);
@@ -140,6 +142,44 @@ const ProjectModal: React.FC<ProjectModalProps> = ({ project, onClose, onSave })
         setFormData(prev => ({ ...prev, logoUrl: reader.result as string }));
       };
       reader.readAsDataURL(file);
+    }
+  };
+
+  const parseCsvFile = (file: File): Promise<any[]> => {
+    return new Promise((resolve, reject) => {
+      Papa.parse(file, {
+        header: true,
+        skipEmptyLines: true,
+        complete: (results) => resolve(results.data),
+        error: (error) => reject(error)
+      });
+    });
+  };
+
+  const handleSaveInternal = async (
+    dataToSave: Partial<Project>, 
+    schemaFile: File | null, 
+    responsesFile: File | null
+  ) => {
+    setSaving(true);
+    try {
+        let schemaData: any[] = [];
+        let responsesData: any[] = [];
+
+        if (schemaFile) {
+            schemaData = await parseCsvFile(schemaFile);
+        }
+
+        if (responsesFile) {
+            responsesData = await parseCsvFile(responsesFile);
+        }
+
+        await onSave(dataToSave, schemaData, responsesData);
+    } catch (e) {
+        console.error("Error processing files", e);
+        alert("Failed to process CSV files. Please check format.");
+    } finally {
+        setSaving(false);
     }
   };
 
@@ -350,13 +390,14 @@ const ProjectModal: React.FC<ProjectModalProps> = ({ project, onClose, onSave })
           </div>
 
           <div className="p-8 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-100 dark:border-slate-800 flex items-center justify-end gap-4 shrink-0">
-             <button onClick={onClose} className="px-8 py-3 text-sm font-bold text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 transition-colors">Discard</button>
+             <button onClick={onClose} disabled={saving} className="px-8 py-3 text-sm font-bold text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 transition-colors">Discard</button>
              <button 
-               onClick={() => onSave(formData)} 
-               disabled={!uploadedFiles.schema || !uploadedFiles.responses}
-               className={`px-12 py-4 rounded-2xl font-bold shadow-xl transition-all flex items-center gap-2 ${(!uploadedFiles.schema || !uploadedFiles.responses) ? 'bg-slate-200 dark:bg-slate-800 text-slate-400 dark:text-slate-600 cursor-not-allowed shadow-none' : 'bg-blue-600 text-white shadow-blue-500/30 hover:bg-blue-700 hover:scale-105 active:scale-95'}`}
+               onClick={() => handleSaveInternal(formData, selectedFiles.schema, selectedFiles.responses)}
+               disabled={(!uploadedFiles.schema || !uploadedFiles.responses) || saving}
+               className={`px-12 py-4 rounded-2xl font-bold shadow-xl transition-all flex items-center gap-2 ${(!uploadedFiles.schema || !uploadedFiles.responses || saving) ? 'bg-slate-200 dark:bg-slate-800 text-slate-400 dark:text-slate-600 cursor-not-allowed shadow-none' : 'bg-blue-600 text-white shadow-blue-500/30 hover:bg-blue-700 hover:scale-105 active:scale-95'}`}
              >
-                {isEditing ? 'Save Changes' : 'Initialize Hub'} <ArrowRight className="w-4 h-4" />
+                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : (isEditing ? 'Save Changes' : 'Initialize Hub')} 
+                {!saving && <ArrowRight className="w-4 h-4" />}
              </button>
           </div>
        </div>

@@ -57,13 +57,14 @@ export async function analyzeEventContext(textOrUrl: string): Promise<Partial<Pr
 
     if (response.text) {
       const data = JSON.parse(response.text);
+      // Ensure all fields have defaults to prevent 'undefined' values which crash Firestore
       return {
-        name: data.name,
-        venue: data.venue,
-        location: data.location,
-        dates: data.dates,
-        year: data.year,
-        promoter: data.promoter,
+        name: data.name || '',
+        venue: data.venue || '',
+        location: data.location || '',
+        dates: data.dates || '',
+        year: data.year || '',
+        promoter: data.promoter || '',
         logoUrl: data.domainHint ? `https://logo.clearbit.com/${data.domainHint}` : ''
       };
     }

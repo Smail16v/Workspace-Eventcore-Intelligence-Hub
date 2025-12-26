@@ -40,3 +40,12 @@
 - **Grouping**: Group projects by Year, Promoter, Venue, or Location.
 - **UI**: Tailwind CSS implementation with `lucide-react` icons.
 - **Simulation**: UI support for "uploading" Schema and Raw Data CSVs (Metadata only).
+
+Here are the specific updates:
+types.ts: Removed role from the UserProfile interface.
+services/firebase.ts: Removed role handling in registerUser and ensureUserProfileExists.
+components/AuthModal.tsx: Removed the role state and updated the registration call.
+components/ProfileModal.tsx: Removed role from the local state and update logic.
+FIREBASE_RULES.md: Simplified rules to allow any authenticated user to create, update, or delete projects (Collaborative Workspace mode).
+DATA_REQUIREMENTS.md: Updated documentation to reflect the removal of the role field.
+ARCHITECTURE.md: Logged the v1.4.0 update.
