@@ -11,7 +11,8 @@ import {
 import { onAuthStateChanged, signInAnonymously, signInWithCustomToken, User } from 'firebase/auth';
 import { collection, addDoc, onSnapshot, query, doc, updateDoc } from 'firebase/firestore';
 
-import { auth, db, appId, isMock } from './services/firebase';
+// Rename imported isMock to initialIsMock to allow local state override
+import { auth, db, appId, isMock as initialIsMock } from './services/firebase';
 import { Project, ViewMode, GroupBy } from './types';
 
 import Navbar from './components/Navbar';
@@ -19,21 +20,46 @@ import ProjectCard from './components/ProjectCard';
 import ProjectModal from './components/ProjectModal';
 import ProjectDashboard from './components/ProjectDashboard';
 import EmptyState from './components/EmptyState';
+import AuthModal from './components/AuthModal';
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [modalState, setModalState] = useState<{ isOpen: boolean; project: Project | null }>({ isOpen: false, project: null });
+  // Set default to true so users land on the sign-in page first
+  const [authModalOpen, setAuthModalOpen] = useState(true);
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
   const [groupBy, setGroupBy] = useState<GroupBy>('none');
   const [searchTerm, setSearchTerm] = useState('');
   const [activeProject, setActiveProject] = useState<Project | null>(null);
+  
+  // State to track if we are in Demo/Mock mode (either forced by config or fallback on error)
+  const [isDemoMode, setIsDemoMode] = useState(initialIsMock);
+
+  // Theme State
+  const [theme, setTheme] = useState(() => {
+    if (typeof window !== 'undefined') {
+        return localStorage.getItem('theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+    }
+    return 'light';
+  });
+
+  useEffect(() => {
+    if (theme === 'dark') {
+        document.documentElement.classList.add('dark');
+    } else {
+        document.documentElement.classList.remove('dark');
+    }
+    localStorage.setItem('theme', theme);
+  }, [theme]);
+
+  const toggleTheme = () => setTheme(prev => prev === 'dark' ? 'light' : 'dark');
 
   // Authentication
   useEffect(() => {
-    // If we are in mock mode (no valid config), skip auth to prevent "invalid-api-key" errors.
-    if (isMock) {
+    // If we start in mock mode (no valid config), skip auth.
+    if (initialIsMock) {
       setLoading(false);
       return;
     }
@@ -43,30 +69,61 @@ export default function App() {
         if (typeof window.__initial_auth_token !== 'undefined' && window.__initial_auth_token) {
           await signInWithCustomToken(auth, window.__initial_auth_token);
         } else {
-          await signInAnonymously(auth);
+          // Only sign in anonymously if there is no current user
+          if (!auth.currentUser) {
+            await signInAnonymously(auth);
+          }
         }
-      } catch (error) {
-        console.error("Authentication error:", error);
-        // Ensure we stop loading if auth fails, allowing the UI to render the empty state
+      } catch (error: any) {
+        // Handle specific auth restrictions by falling back to demo mode silently
+        if (error.code === 'auth/admin-restricted-operation' || error.code === 'auth/operation-not-allowed') {
+             console.warn("Firebase Auth: Anonymous login disabled/restricted. Switching to Demo Mode.");
+             setIsDemoMode(true);
+        } else {
+             // Log genuine errors
+             console.error("Authentication error:", error);
+        }
+        
+        // Stop loading to show UI (either authenticated or demo)
         setLoading(false);
       }
     };
-    initAuth();
-
+    
+    // Listen for auth state changes
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
-      // Data Sync effect handles the loading state logic for data fetching based on user presence.
+      
+      // If a real (non-anonymous) user is detected, auto-close the modal.
+      // Otherwise, keep it open (default state) to prompt sign-in/registration.
+      if (currentUser && !currentUser.isAnonymous) {
+         setAuthModalOpen(false);
+      }
+
+      if (!currentUser) {
+         // Optionally trigger anonymous auth again if logged out? 
+         // For now, let's leave them as null (Navbar handles "Sign In" state)
+      }
     });
+
+    initAuth();
 
     return () => unsubscribe();
   }, []);
 
   // Data Sync
   useEffect(() => {
-    if (!user) return;
-    if (isMock) {
+    // If in Demo Mode, do not attempt Firestore connection
+    if (isDemoMode) {
       setLoading(false);
       return;
+    }
+
+    if (!user) {
+        // If not logged in, we might still want to show loading or empty?
+        // Let's assume public read or just empty list if no user
+        setProjects([]);
+        setLoading(false);
+        return;
     }
 
     setLoading(true);
@@ -82,12 +139,17 @@ export default function App() {
       }, 
       (err) => {
         console.error("Firestore access error:", err);
+        // If Firestore fails (e.g. rules), fall back to demo mode as well
+        if (err.code === 'permission-denied') {
+            console.warn("Permission denied. Switching to Demo Mode.");
+            setIsDemoMode(true);
+        }
         setLoading(false);
       }
     );
 
     return () => unsubscribeData();
-  }, [user]);
+  }, [user, isDemoMode]);
 
   // Filtering & Grouping
   const filteredProjects = useMemo(() => {
@@ -112,7 +174,7 @@ export default function App() {
   // Actions
   const handleSaveProject = async (data: Partial<Project>) => {
     // 1. MOCK / DEMO MODE HANDLER
-    if (isMock) {
+    if (isDemoMode) {
         // Simulate network delay for realism
         await new Promise(resolve => setTimeout(resolve, 600));
 
@@ -138,7 +200,8 @@ export default function App() {
 
     // 2. FIREBASE MODE HANDLER
     if (!user) {
-        alert("Authentication required to save changes to the database.");
+        // If trying to save while logged out (rare if we have anonymous, but possible)
+        setAuthModalOpen(true);
         return;
     }
 
@@ -172,9 +235,9 @@ export default function App() {
     setModalState({ isOpen: true, project });
   };
 
-  if (loading && !user) {
+  if (loading && !user && !isDemoMode) {
     return (
-      <div className="h-screen w-full flex items-center justify-center bg-slate-50">
+      <div className="h-screen w-full flex items-center justify-center bg-slate-50 dark:bg-slate-900 transition-colors">
         <Loader2 className="w-10 h-10 text-blue-600 animate-spin" />
       </div>
     );
@@ -190,13 +253,18 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] text-slate-900 font-sans flex flex-col transition-colors">
-      <Navbar user={user} />
+    <div className="min-h-screen bg-[#F8FAFC] dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans flex flex-col transition-colors duration-300">
+      <Navbar 
+        user={user} 
+        onAuthClick={() => setAuthModalOpen(true)} 
+        isDark={theme === 'dark'}
+        toggleTheme={toggleTheme}
+      />
       
-      {isMock && (
-        <div className="bg-amber-50 border-b border-amber-200 px-6 py-2 text-xs font-bold text-amber-800 flex items-center justify-center gap-2">
+      {isDemoMode && (
+        <div className="bg-amber-50 dark:bg-amber-900/20 border-b border-amber-200 dark:border-amber-800 px-6 py-2 text-xs font-bold text-amber-800 dark:text-amber-400 flex items-center justify-center gap-2">
             <AlertTriangle className="w-3.5 h-3.5" />
-            <span>Running in Demo Mode. Data is stored locally and will be reset on refresh. Connect Firebase for persistence.</span>
+            <span>Running in Demo Mode. Data is stored locally and will be reset on refresh. {initialIsMock ? "Connect Firebase" : "Anonymous Auth Disabled"} for persistence.</span>
         </div>
       )}
 
@@ -204,8 +272,8 @@ export default function App() {
         {/* Header Section */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-12">
           <div>
-            <h2 className="text-3xl font-extrabold text-slate-900 tracking-tight">Project Workspace</h2>
-            <p className="text-slate-500 mt-1">Organize your event intelligence by Promoter, Year, or Venue.</p>
+            <h2 className="text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">Project Workspace</h2>
+            <p className="text-slate-500 dark:text-slate-400 mt-1">Organize your event intelligence by Promoter, Year, or Venue.</p>
           </div>
 
           <div className="flex items-center gap-3">
@@ -216,7 +284,7 @@ export default function App() {
                 placeholder="Search projects..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-9 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none w-64 shadow-sm transition-all"
+                className="pl-9 pr-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-500 focus:border-transparent outline-none w-64 shadow-sm transition-all dark:text-white placeholder-slate-400"
               />
             </div>
             
@@ -230,9 +298,9 @@ export default function App() {
         </div>
 
         {/* Controls Section */}
-        <div className="flex items-center justify-between mb-8 bg-white p-2 rounded-2xl border border-slate-200 shadow-sm">
+        <div className="flex items-center justify-between mb-8 bg-white dark:bg-slate-900 p-2 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm transition-colors">
            <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
-              <span className="text-[10px] font-bold text-slate-400 uppercase flex items-center gap-2 ml-2 mr-3 tracking-widest whitespace-nowrap">
+              <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase flex items-center gap-2 ml-2 mr-3 tracking-widest whitespace-nowrap">
                  <Filter className="w-3 h-3" /> Group View
               </span>
               <div className="flex gap-1">
@@ -240,7 +308,7 @@ export default function App() {
                    <button 
                      key={opt}
                      onClick={() => setGroupBy(opt)}
-                     className={`px-3 py-1.5 rounded-lg text-xs font-bold capitalize transition-all whitespace-nowrap ${groupBy === opt ? 'bg-blue-50 text-blue-600' : 'text-slate-500 hover:bg-slate-50'}`}
+                     className={`px-3 py-1.5 rounded-lg text-xs font-bold capitalize transition-all whitespace-nowrap ${groupBy === opt ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'}`}
                    >
                      {opt}
                    </button>
@@ -249,8 +317,8 @@ export default function App() {
            </div>
 
            <div className="flex items-center gap-1 pl-4">
-             <button onClick={() => setViewMode('grid')} className={`p-2 rounded-lg transition-all ${viewMode === 'grid' ? 'bg-blue-50 text-blue-600' : 'text-slate-400'}`} title="Grid View"><LayoutGrid className="w-4 h-4" /></button>
-             <button onClick={() => setViewMode('list')} className={`p-2 rounded-lg transition-all ${viewMode === 'list' ? 'bg-blue-50 text-blue-600' : 'text-slate-400'}`} title="List View"><List className="w-4 h-4" /></button>
+             <button onClick={() => setViewMode('grid')} className={`p-2 rounded-lg transition-all ${viewMode === 'grid' ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400' : 'text-slate-400 dark:text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800'}`} title="Grid View"><LayoutGrid className="w-4 h-4" /></button>
+             <button onClick={() => setViewMode('list')} className={`p-2 rounded-lg transition-all ${viewMode === 'list' ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400' : 'text-slate-400 dark:text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800'}`} title="List View"><List className="w-4 h-4" /></button>
            </div>
         </div>
 
@@ -266,9 +334,9 @@ export default function App() {
           Object.entries(groupedProjects).map(([group, list]) => (
             <div key={group} className="mb-12 animate-in fade-in slide-in-from-top-4 duration-500">
                <div className="flex items-center gap-4 mb-6">
-                  <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest leading-none">{group}</h3>
-                  <div className="flex-1 h-px bg-slate-200"></div>
-                  <span className="bg-slate-100 text-slate-500 px-2 py-0.5 rounded text-[10px] font-bold tracking-tight">{list.length} Projects</span>
+                  <h3 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest leading-none">{group}</h3>
+                  <div className="flex-1 h-px bg-slate-200 dark:bg-slate-800"></div>
+                  <span className="bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 px-2 py-0.5 rounded text-[10px] font-bold tracking-tight">{list.length} Projects</span>
                </div>
                
                <div className={viewMode === 'grid' ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8" : "space-y-3"}>
@@ -287,11 +355,18 @@ export default function App() {
         )}
       </main>
 
+      {/* Modals */}
       {modalState.isOpen && (
         <ProjectModal 
           project={modalState.project}
           onClose={() => setModalState({ isOpen: false, project: null })} 
           onSave={handleSaveProject} 
+        />
+      )}
+
+      {authModalOpen && (
+        <AuthModal 
+          onClose={() => setAuthModalOpen(false)} 
         />
       )}
     </div>

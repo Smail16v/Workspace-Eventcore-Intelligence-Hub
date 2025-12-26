@@ -5,6 +5,18 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Eventcore Workspace</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        darkMode: 'class',
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: ['Inter', 'sans-serif'],
+            }
+          }
+        }
+      }
+    </script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
       body { font-family: 'Inter', sans-serif; }
@@ -12,6 +24,8 @@
       .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
       .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
       .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+      .dark .custom-scrollbar::-webkit-scrollbar-thumb { background: #475569; }
+      .dark .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #64748b; }
     </style>
   <script type="importmap">
 {
@@ -21,12 +35,14 @@
     "react/": "https://esm.sh/react@^19.2.3/",
     "react": "https://esm.sh/react@^19.2.3",
     "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
-    "firebase/": "https://esm.sh/firebase@^12.7.0/"
+    "firebase/": "https://esm.sh/firebase@^12.7.0/",
+    "jszip": "https://esm.sh/jszip@3.10.1",
+    "papaparse": "https://esm.sh/papaparse@5.4.1"
   }
 }
 </script>
 </head>
-  <body>
+  <body class="bg-[#F8FAFC] dark:bg-slate-950 transition-colors duration-200">
     <div id="root"></div>
   </body>
 </html>

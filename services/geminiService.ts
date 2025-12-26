@@ -1,20 +1,42 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { Project } from "../types";
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+// Initialize AI client only if API key is present to avoid runtime crashes
+const apiKey = process.env.API_KEY;
+const ai = apiKey ? new GoogleGenAI({ apiKey }) : null;
 
 export async function analyzeEventContext(textOrUrl: string): Promise<Partial<Project>> {
+  // If no API key is available, fallback to mock data immediately
+  if (!ai) {
+    console.warn("Gemini API Key missing. Returning mock data.");
+    await new Promise(r => setTimeout(r, 800)); // Simulate network delay
+    return {
+        name: "Mock Event (No API Key)",
+        venue: "Demo Venue Center",
+        location: "City, Country",
+        dates: "JAN 01 - DEC 31",
+        year: new Date().getFullYear().toString(),
+        promoter: "System Demo",
+        logoUrl: ""
+    };
+  }
+
   try {
     const prompt = `
-      Analyze the following event context or URL: "${textOrUrl}". 
-      Extract relevant details to populate a survey dashboard project.
-      Return the data in JSON format matching the schema.
-      If a specific field is not found, make a reasonable guess or leave it generic.
+      You are an event intelligence assistant.
+      Task: Analyze the input text/URL and extract structured event metadata.
+      Input: "${textOrUrl}"
+      
+      Instructions:
+      1. Extract the official name, venue, location, dates, year, and promoter.
+      2. Identify the main domain name (domainHint) to be used for logo lookup.
+      3. Return valid JSON matching the schema.
+      4. Do not output markdown code blocks, just the JSON object.
     `;
 
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash-preview-09-2025',
-      contents: prompt,
+      contents: { parts: [{ text: prompt }] },
       config: {
         responseMimeType: 'application/json',
         responseSchema: {
@@ -46,9 +68,10 @@ export async function analyzeEventContext(textOrUrl: string): Promise<Partial<Pr
       };
     }
     
-    throw new Error("No response text generated");
+    throw new Error("No response text generated from Gemini");
   } catch (error) {
     console.error("Gemini Analysis Error:", error);
+    
     // Fallback logic for specific known test cases if AI fails or key is missing
     if (textOrUrl.toLowerCase().includes('vancouver')) {
         return {

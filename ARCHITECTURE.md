@@ -68,6 +68,14 @@ interface Project {
 4.  **`ProjectCard.tsx`**
     -   Polymorphic component rendering either a Grid card or a List row based on `viewMode`.
 
+## Standards & Specifications
+
+### Data Requirements
+Refer to `DATA_REQUIREMENTS.md` for detailed CSV formatting (Schema/Raw Data) and Firestore metadata definitions.
+
+### GraphQL Generation
+Refer to `GRAPHQL_GENERATION.md` for the Standard Operating Configuration (SOC) regarding type-safe operation generation. This specification is reserved for future scalability phases or hybrid implementations where a GraphQL API gateway is introduced.
+
 ## State Management
 - Local React State (`useState`) is used for UI controls (Modals, View Modes, Search).
 - Firestore Real-time listeners act as the "Server State" manager, automatically syncing changes across clients.
