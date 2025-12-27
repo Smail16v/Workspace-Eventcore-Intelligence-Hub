@@ -268,8 +268,12 @@ export const saveProjectDatasets = async (
   schemaRows?: any[], 
   responseRows?: any[]
 ) => {
+  // Delay helper to yield execution and prevent write stream exhaustion
+  const delay = (ms: number) => new Promise(res => setTimeout(res, ms));
+
   const uploadBatch = async (collectionName: string, rows: any[]) => {
-    const BATCH_SIZE = 450; 
+    // Reduced batch size to safely stay within limits and client queue capacity
+    const BATCH_SIZE = 250; 
     const total = rows.length;
     
     console.log(`Starting batch upload for ${collectionName}: ${total} rows`);
@@ -289,19 +293,34 @@ export const saveProjectDatasets = async (
       });
 
       if (opCount > 0) {
-         await batch.commit();
-         console.log(`Uploaded batch ${Math.floor(i / BATCH_SIZE) + 1} for ${collectionName} (${opCount} docs)`);
+         try {
+             await batch.commit();
+             console.log(`Uploaded batch ${Math.floor(i / BATCH_SIZE) + 1} for ${collectionName} (${opCount} docs)`);
+             // Mandatory delay to allow SDK to clear its write queue
+             await delay(100); 
+         } catch (e: any) {
+             console.error(`Batch commit failed for ${collectionName} at index ${i}`, e);
+             // If rate limited, wait longer and retry once
+             if (e.code === 'resource-exhausted') {
+                 console.warn("Resource exhausted, retrying after 2s...");
+                 await delay(2000);
+                 await batch.commit();
+             } else {
+                 throw e;
+             }
+         }
       }
     }
   };
 
-  const promises = [];
+  // Execute uploads sequentially instead of parallel to reduce write pressure
   if (schemaRows && schemaRows.length > 0) {
-    promises.push(uploadBatch('schema', schemaRows));
+    await uploadBatch('schema', schemaRows);
   }
+  
   if (responseRows && responseRows.length > 0) {
-    promises.push(uploadBatch('responses', responseRows));
+    // Small delay between collection switches
+    await delay(500); 
+    await uploadBatch('responses', responseRows);
   }
-
-  await Promise.all(promises);
 };

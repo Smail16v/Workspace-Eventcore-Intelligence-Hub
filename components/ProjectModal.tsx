@@ -29,6 +29,16 @@ const formatFileSize = (bytes?: number) => {
   return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
 };
 
+const extractProjectNameFromFilename = (filename: string): string => {
+  // Remove extension
+  let name = filename.replace(/\.[^/.]+$/, "");
+  // Remove common prefixes
+  name = name.replace(/^(Q_|RawData_|Schema_|Responses_)/i, "");
+  // Replace underscores and dashes with spaces
+  name = name.replace(/[_-]/g, " ");
+  return name.trim();
+};
+
 const ProjectModal: React.FC<ProjectModalProps> = ({ project, onClose, onSave }) => {
   const isEditing = !!project;
   const [url, setUrl] = useState('');
@@ -153,13 +163,8 @@ const ProjectModal: React.FC<ProjectModalProps> = ({ project, onClose, onSave })
       }
   };
 
-  const handleAutoRetrieve = async () => {
-    if (!url) return;
-    setAnalyzing(true);
-    setAnalysisError(null);
-    try {
-      const data = await analyzeEventContext(url);
-      // Ensure separate fields
+  // Helper to process AI results and split location/country
+  const processAndSetAiData = (data: Partial<Project>) => {
       let loc = data.location || '';
       let country = '';
       if (loc.includes('•')) {
@@ -172,13 +177,22 @@ const ProjectModal: React.FC<ProjectModalProps> = ({ project, onClose, onSave })
           country = parts.pop()?.trim() || '';
           loc = parts.join(',').trim();
       }
-
+      
       setFormData(prev => ({ 
           ...prev, 
           ...data,
           location: loc,
           country: country 
       }));
+  };
+
+  const handleAutoRetrieve = async () => {
+    if (!url) return;
+    setAnalyzing(true);
+    setAnalysisError(null);
+    try {
+      const data = await analyzeEventContext(url);
+      processAndSetAiData(data);
     } catch (e: any) {
       console.error("Analysis Failed", e);
       setAnalysisError("Failed to extract details. Please try again or fill manually.");
@@ -214,12 +228,33 @@ const ProjectModal: React.FC<ProjectModalProps> = ({ project, onClose, onSave })
       }
   };
 
-  const handleFileChange = (type: 'schema' | 'responses', e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (type: 'schema' | 'responses', e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       setSelectedFiles(prev => ({ ...prev, [type]: file }));
       setUploadedFiles(prev => ({ ...prev, [type]: true }));
       setFilesToDelete(prev => ({ ...prev, [type]: false })); // We are uploading, so don't delete
+
+      // Auto-Fill Logic: If name is empty, try to extract from filename and run AI
+      if (!formData.name) {
+         const potentialName = extractProjectNameFromFilename(file.name);
+         if (potentialName && potentialName.length > 2) {
+             // Set name immediately for UX
+             setFormData(prev => ({ ...prev, name: potentialName }));
+             
+             // Trigger AI Analysis in background
+             setAnalyzing(true);
+             try {
+                const aiData = await analyzeEventContext(potentialName);
+                processAndSetAiData(aiData);
+             } catch (err) {
+                 console.warn("Auto-fill from filename failed", err);
+                 // Silent fail is okay here, user can fill manually
+             } finally {
+                 setAnalyzing(false);
+             }
+         }
+      }
     }
   };
 

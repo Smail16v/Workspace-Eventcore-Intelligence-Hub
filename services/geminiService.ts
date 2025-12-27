@@ -24,20 +24,21 @@ export async function analyzeEventContext(textOrUrl: string): Promise<Partial<Pr
   try {
     const prompt = `
       You are an event intelligence assistant.
-      Task: Analyze the input text/URL and extract structured event metadata.
+      Task: Analyze the input text/URL/Filename and use Google Search to find the REAL, official details for the next upcoming occurrence of this event (likely 2025 or 2026).
       Input: "${textOrUrl}"
       
       Instructions:
       1. Extract the official name, venue, location, dates, year, and promoter.
-      2. Identify the main domain name (domainHint) to be used for logo lookup.
-      3. Return valid JSON matching the schema.
-      4. Do not output markdown code blocks, just the JSON object.
+      2. If the input is a filename like "Q_USOpen.csv", infer "US Open" and search for that.
+      3. Identify the main domain name (domainHint) to be used for logo lookup.
+      4. Return valid JSON matching the schema.
     `;
 
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash-preview-09-2025',
       contents: { parts: [{ text: prompt }] },
       config: {
+        tools: [{ googleSearch: {} }], // Enable Google Search Grounding
         responseMimeType: 'application/json',
         responseSchema: {
           type: Type.OBJECT,
@@ -45,8 +46,8 @@ export async function analyzeEventContext(textOrUrl: string): Promise<Partial<Pr
             name: { type: Type.STRING, description: "Official name of the event" },
             venue: { type: Type.STRING, description: "Name of the venue" },
             location: { type: Type.STRING, description: "City, State, Country format" },
-            dates: { type: Type.STRING, description: "Date range e.g. 'JAN 15 - 18'" },
-            year: { type: Type.STRING, description: "The year of the event" },
+            dates: { type: Type.STRING, description: "Date range e.g. 'JAN 15 - 18' for the specific year found" },
+            year: { type: Type.STRING, description: "The year of the event found" },
             promoter: { type: Type.STRING, description: "Promoter organization or sponsor" },
             domainHint: { type: Type.STRING, description: "Main domain of the event for logo lookup" },
           },
