@@ -1,3 +1,14 @@
+export interface ProjectMetrics {
+  onlinePercent: number;
+  onsitePercent: number;
+  dateRange: string;
+  avgDuration: string;
+  engagement: string; // e.g. "26.6Qs"
+  surveyLength: string; // e.g. "52Questions"
+  progressPercent: number;
+  totalRespondents: string; // New field: "n = 1626"
+}
+
 export interface Project {
   id?: string;
   name: string;
@@ -17,6 +28,8 @@ export interface Project {
   // File Meta
   schemaSize?: number;
   responsesSize?: number;
+  // Snapshot Analytics
+  metrics?: ProjectMetrics;
 }
 
 export interface UserProfile {

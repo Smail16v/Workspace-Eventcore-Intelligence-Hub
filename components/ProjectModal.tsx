@@ -1,13 +1,15 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { X, ImageIcon, Plus, Sparkles, Link as LinkIcon, Loader2, FileSpreadsheet, FileCheck, Upload, AlertCircle, CheckCircle2, ArrowRight, RefreshCw, DownloadCloud, AlertTriangle, Trash2, Eye } from 'lucide-react';
 import Papa from 'papaparse';
-import { Project } from '../types';
+import { Project, ProjectMetrics } from '../types';
 import { analyzeEventContext } from '../services/geminiService';
 import { listSurveys, importSurveyData, QualtricsSurvey } from '../services/qualtricsService';
+import { extractProjectMetrics } from '../services/metadataService';
 
 interface ProjectModalProps {
   project: Project | null;
   onClose: () => void;
+  onDelete?: (projectId: string) => Promise<void>;
   onSave: (
       data: Partial<Project>, 
       schemaData?: any[], 
@@ -39,7 +41,7 @@ const extractProjectNameFromFilename = (filename: string): string => {
   return name.trim();
 };
 
-const ProjectModal: React.FC<ProjectModalProps> = ({ project, onClose, onSave }) => {
+const ProjectModal: React.FC<ProjectModalProps> = ({ project, onClose, onSave, onDelete }) => {
   const isEditing = !!project;
   const [url, setUrl] = useState('');
   const [analyzing, setAnalyzing] = useState(false);
@@ -291,6 +293,7 @@ const ProjectModal: React.FC<ProjectModalProps> = ({ project, onClose, onSave })
     try {
         let schemaData: any[] = [];
         let responsesData: any[] = [];
+        let extractedMetrics: ProjectMetrics | undefined;
 
         if (schemaFile) {
             setProgress({ stage: 'Parsing Schema CSV...', percent: 10 });
@@ -300,17 +303,32 @@ const ProjectModal: React.FC<ProjectModalProps> = ({ project, onClose, onSave })
         if (responsesFile) {
             setProgress({ stage: 'Parsing Responses CSV...', percent: 20 });
             responsesData = await parseCsvFile(responsesFile);
+
+            // Extract Snapshot Metrics immediately after parsing
+            setProgress({ stage: 'Extracting Workspace Metrics...', percent: 25 });
+            extractedMetrics = extractProjectMetrics(responsesData);
         }
         
         setProgress({ stage: 'Starting Uploads...', percent: 30 });
 
-        // Recombine location for legacy support if needed, or store as is.
-        // For UI display in Dashboard, we might assume location + country
-        const finalData = { ...dataToSave };
+        // Project Name Fallback Logic (For Qualtrics Auto-Import)
+        // If the user hasn't edited the name, and we are importing, ensure we have a name.
+        let finalName = dataToSave.name || '';
+        if (!finalName && importMode === 'qualtrics' && importingId) {
+             const foundSurvey = surveys.find(s => s.id === importingId);
+             if (foundSurvey) finalName = foundSurvey.name;
+        }
+        
+        // Recombine data
+        const finalData = { 
+            ...dataToSave,
+            name: finalName,
+            metrics: extractedMetrics // Attach the calculated snapshots
+        };
+
+        // Legacy composite handling if needed
         if (finalData.location && finalData.country) {
-            // Optional: You can choose to store a composite string if your other components expect it, 
-            // but the clean way is to store them separately as defined in types.ts.
-            // Current types.ts has 'location' and 'country'.
+            // Optional legacy logic
         }
 
         await onSave(
@@ -326,11 +344,34 @@ const ProjectModal: React.FC<ProjectModalProps> = ({ project, onClose, onSave })
         );
     } catch (e) {
         console.error("Error processing files", e);
-        alert("Failed to process CSV files. Please check format.");
+        alert("Failed to process initialization. Please check CSV format.");
     } finally {
         setSaving(false);
         setProgress(null);
     }
+  };
+
+  const handleDeleteClick = async () => {
+      if (!onDelete) {
+          console.error("onDelete function is not defined");
+          return;
+      }
+
+      if (!project?.id) {
+          console.error("Project ID is missing", project);
+          alert("Error: Cannot delete this project because its ID is missing.");
+          return;
+      }
+      
+      if (window.confirm(`Are you sure you want to delete "${project.name}" entirely? This action cannot be undone.`)) {
+          setSaving(true);
+          try {
+              await onDelete(project.id);
+          } catch (e) {
+              console.error("Delete failed in modal catch:", e);
+              setSaving(false);
+          }
+      }
   };
 
   return (
@@ -615,34 +656,50 @@ const ProjectModal: React.FC<ProjectModalProps> = ({ project, onClose, onSave })
              </div>
           </div>
 
-          <div className="p-8 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-100 dark:border-slate-800 flex items-center justify-end gap-4 shrink-0">
-             <button onClick={onClose} disabled={saving} className="px-8 py-3 text-sm font-bold text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 transition-colors">Discard</button>
-             <button 
-               onClick={() => handleSaveInternal(formData, selectedFiles.schema, selectedFiles.responses)}
-               disabled={saving}
-               className={`px-12 py-4 rounded-2xl font-bold shadow-xl transition-all flex items-center gap-2 ${saving ? 'bg-slate-200 dark:bg-slate-800 text-slate-400 dark:text-slate-600 cursor-not-allowed shadow-none min-w-[200px] justify-center' : 'bg-blue-600 text-white shadow-blue-500/30 hover:bg-blue-700 hover:scale-105 active:scale-95'}`}
-             >
-                {saving ? (
-                   <div className="flex items-center gap-3">
-                      <Loader2 className="w-4 h-4 animate-spin shrink-0" />
-                      {progress ? (
-                         <div className="flex flex-col items-start w-full">
-                             <span className="text-[10px] uppercase font-bold tracking-widest leading-none mb-1.5">{progress.stage}</span>
-                             <div className="w-32 h-1 bg-slate-400/20 rounded-full overflow-hidden">
-                                <div className="h-full bg-slate-400 dark:bg-slate-500 transition-all duration-300" style={{ width: `${progress.percent}%` }}></div>
-                             </div>
-                         </div>
-                      ) : (
-                         <span>Processing...</span>
-                      )}
-                   </div>
-                ) : (
-                  <>
-                    {isEditing ? 'Save Changes' : 'Initialize Hub'} 
-                    <ArrowRight className="w-4 h-4" />
-                  </>
-                )} 
-             </button>
+          <div className="p-8 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-4 shrink-0">
+             <div>
+                {isEditing && (
+                    <button 
+                        type="button"
+                        onClick={handleDeleteClick}
+                        disabled={saving}
+                        className="flex items-center gap-2 px-4 py-3 bg-red-50 dark:bg-red-900/10 text-red-600 dark:text-red-400 rounded-xl font-bold text-xs hover:bg-red-100 dark:hover:bg-red-900/20 transition-all active:scale-95"
+                    >
+                        {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                        Delete Project
+                    </button>
+                )}
+             </div>
+             
+             <div className="flex items-center gap-4">
+                <button onClick={onClose} disabled={saving} className="px-8 py-3 text-sm font-bold text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 transition-colors">Discard</button>
+                <button 
+                onClick={() => handleSaveInternal(formData, selectedFiles.schema, selectedFiles.responses)}
+                disabled={saving}
+                className={`px-12 py-4 rounded-2xl font-bold shadow-xl transition-all flex items-center gap-2 ${saving ? 'bg-slate-200 dark:bg-slate-800 text-slate-400 dark:text-slate-600 cursor-not-allowed shadow-none min-w-[200px] justify-center' : 'bg-blue-600 text-white shadow-blue-500/30 hover:bg-blue-700 hover:scale-105 active:scale-95'}`}
+                >
+                    {saving ? (
+                    <div className="flex items-center gap-3">
+                        <Loader2 className="w-4 h-4 animate-spin shrink-0" />
+                        {progress ? (
+                            <div className="flex flex-col items-start w-full">
+                                <span className="text-[10px] uppercase font-bold tracking-widest leading-none mb-1.5">{progress.stage}</span>
+                                <div className="w-32 h-1 bg-slate-400/20 rounded-full overflow-hidden">
+                                    <div className="h-full bg-slate-400 dark:bg-slate-500 transition-all duration-300" style={{ width: `${progress.percent}%` }}></div>
+                                </div>
+                            </div>
+                        ) : (
+                            <span>Processing...</span>
+                        )}
+                    </div>
+                    ) : (
+                    <>
+                        {isEditing ? 'Save Changes' : 'Initialize Hub'} 
+                        <ArrowRight className="w-4 h-4" />
+                    </>
+                    )} 
+                </button>
+             </div>
           </div>
        </div>
     </div>

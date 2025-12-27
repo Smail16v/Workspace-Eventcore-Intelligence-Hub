@@ -21,7 +21,8 @@ import {
   saveProjectDatasets,
   uploadProjectFile,
   deleteProjectFile,
-  uploadProjectLogo
+  uploadProjectLogo,
+  deleteProject
 } from './services/firebase';
 import { Project, ViewMode, GroupBy, UserProfile } from './types';
 
@@ -195,16 +196,16 @@ export default function App() {
     );
   }, [projects, searchTerm]);
 
-  const groupedProjects = useMemo(() => {
+  const groupedProjects = useMemo<Record<string, Project[]>>(() => {
     if (groupBy === 'none') return { "All Projects": filteredProjects };
     
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    return filteredProjects.reduce((acc: Record<string, Project[]>, p: any) => {
-      const key = p[groupBy] || 'Uncategorized';
+    return filteredProjects.reduce((acc, p: any) => {
+      const key = (p[groupBy] as string) || 'Uncategorized';
       if (!acc[key]) acc[key] = [];
       acc[key].push(p);
       return acc;
-    }, {});
+    }, {} as Record<string, Project[]>);
   }, [filteredProjects, groupBy]);
 
   // Actions
@@ -324,6 +325,22 @@ export default function App() {
           const msg = e.message || "Unknown error";
           alert(`Failed to save project. ${msg}`);
       }
+    }
+  };
+
+  const handleDeleteProject = async (projectId: string) => {
+    if (!user) return;
+    try {
+        await deleteProject(projectId);
+        setModalState({ isOpen: false, project: null });
+        // If we are currently viewing this project in dashboard, go back
+        if (activeProject?.id === projectId) {
+            setActiveProject(null);
+        }
+    } catch (e: any) {
+        console.error("Delete error:", e);
+        alert("Failed to delete project: " + e.message);
+        throw e; // Rethrow to let the modal know it failed
     }
   };
 
@@ -453,16 +470,18 @@ export default function App() {
             </div>
           )
         ) : (
-          Object.entries(groupedProjects).map(([group, list]) => (
+          Object.entries(groupedProjects).map(([group, list]) => {
+            const projectsList = list as Project[];
+            return (
             <div key={group} className="mb-12 animate-in fade-in slide-in-from-top-4 duration-500">
                <div className="flex items-center gap-4 mb-6">
                   <h3 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest leading-none">{group}</h3>
                   <div className="flex-1 h-px bg-slate-200 dark:bg-slate-800"></div>
-                  <span className="bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 px-2 py-0.5 rounded text-[10px] font-bold tracking-tight">{list.length} Projects</span>
+                  <span className="bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 px-2 py-0.5 rounded text-[10px] font-bold tracking-tight">{projectsList.length} Projects</span>
                </div>
                
                <div className={viewMode === 'grid' ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8" : "space-y-3"}>
-                  {list.map(project => (
+                  {projectsList.map(project => (
                     <ProjectCard 
                       key={project.id} 
                       project={project} 
@@ -474,7 +493,8 @@ export default function App() {
                   ))}
                </div>
             </div>
-          ))
+            );
+          })
         )}
       </main>
 
@@ -484,6 +504,7 @@ export default function App() {
           project={modalState.project}
           onClose={() => setModalState({ isOpen: false, project: null })} 
           onSave={handleSaveProject} 
+          onDelete={handleDeleteProject}
         />
       )}
 

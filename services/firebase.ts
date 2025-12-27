@@ -348,3 +348,10 @@ export const saveProjectDatasets = async (
     await uploadBatch('responses', responseRows);
   }
 };
+
+export const deleteProject = async (projectId: string) => {
+    await deleteDoc(doc(db, "projects", projectId));
+    // Note: This operation removes the project from the dashboard. 
+    // Subcollections (schema/responses rows) and Storage files are not automatically deleted by Firestore client SDKs.
+    // In a production environment, a Cloud Function would listen to the deletion and clean up artifacts.
+};
