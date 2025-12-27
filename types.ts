@@ -25,6 +25,8 @@ export interface UserProfile {
   fullName: string;
   companyName: string;
   createdAt: number;
+  // RBAC: 'all' = Admin, string[] = Guest with specific project access
+  accessLevel: 'all' | string[];
 }
 
 export type ViewMode = 'grid' | 'list';

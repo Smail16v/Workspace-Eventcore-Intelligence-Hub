@@ -7,9 +7,10 @@ interface ProjectCardProps {
   viewMode: ViewMode;
   onSelect: () => void;
   onEdit: (e: React.MouseEvent) => void;
+  readOnly?: boolean;
 }
 
-const ProjectCard: React.FC<ProjectCardProps> = ({ project, viewMode, onSelect, onEdit }) => {
+const ProjectCard: React.FC<ProjectCardProps> = ({ project, viewMode, onSelect, onEdit, readOnly }) => {
   if (viewMode === 'list') {
     return (
       <div onClick={onSelect} className="group flex items-center gap-4 p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl hover:border-blue-500 dark:hover:border-blue-500 hover:shadow-lg transition-all cursor-pointer">
@@ -28,7 +29,9 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ project, viewMode, onSelect, 
            <p className="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-tighter">{project.year}</p>
         </div>
         <div className="flex items-center gap-2">
-            <button onClick={onEdit} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors" title="Edit Hub Settings"><Pencil className="w-4 h-4" /></button>
+            {!readOnly && (
+                <button onClick={onEdit} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors" title="Edit Hub Settings"><Pencil className="w-4 h-4" /></button>
+            )}
             <ChevronRight className="w-5 h-5 text-slate-300 dark:text-slate-600 group-hover:text-blue-500 dark:group-hover:text-blue-400 group-hover:translate-x-1 transition-all" />
         </div>
       </div>
@@ -43,11 +46,13 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ project, viewMode, onSelect, 
            alt={project.name} 
            className="max-h-full max-w-full object-contain filter group-hover:scale-110 transition-transform duration-500" 
          />
-         <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity">
-            <button onClick={onEdit} className="p-2.5 bg-white dark:bg-slate-700 rounded-xl shadow-lg text-slate-400 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-white dark:hover:bg-slate-600 transition-all transform hover:scale-110 active:scale-95 border border-slate-100 dark:border-slate-600" title="Edit Hub Settings">
-                <Pencil className="w-4 h-4" />
-            </button>
-         </div>
+         {!readOnly && (
+            <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity">
+                <button onClick={onEdit} className="p-2.5 bg-white dark:bg-slate-700 rounded-xl shadow-lg text-slate-400 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-white dark:hover:bg-slate-600 transition-all transform hover:scale-110 active:scale-95 border border-slate-100 dark:border-slate-600" title="Edit Hub Settings">
+                    <Pencil className="w-4 h-4" />
+                </button>
+            </div>
+         )}
       </div>
       <div className="p-7 flex flex-col flex-1">
          <div className="flex items-center justify-between mb-4">

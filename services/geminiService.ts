@@ -31,7 +31,15 @@ export async function analyzeEventContext(textOrUrl: string): Promise<Partial<Pr
       1. Extract the official name, venue, location, dates, year, and promoter.
       2. If the input is a filename like "Q_USOpen.csv", infer "US Open" and search for that.
       3. Identify the main domain name (domainHint) to be used for logo lookup.
-      4. Return valid JSON matching the schema.
+      4. Return a strictly valid JSON object with the following keys:
+         - name (string)
+         - venue (string)
+         - location (string): City, State, Country
+         - dates (string): e.g. "JAN 15 - 18"
+         - year (string)
+         - promoter (string)
+         - domainHint (string): e.g. "usopen.org"
+      5. Do not include markdown formatting or code blocks. Just the raw JSON string.
     `;
 
     const response = await ai.models.generateContent({
@@ -39,38 +47,41 @@ export async function analyzeEventContext(textOrUrl: string): Promise<Partial<Pr
       contents: { parts: [{ text: prompt }] },
       config: {
         tools: [{ googleSearch: {} }], // Enable Google Search Grounding
-        responseMimeType: 'application/json',
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            name: { type: Type.STRING, description: "Official name of the event" },
-            venue: { type: Type.STRING, description: "Name of the venue" },
-            location: { type: Type.STRING, description: "City, State, Country format" },
-            dates: { type: Type.STRING, description: "Date range e.g. 'JAN 15 - 18' for the specific year found" },
-            year: { type: Type.STRING, description: "The year of the event found" },
-            promoter: { type: Type.STRING, description: "Promoter organization or sponsor" },
-            domainHint: { type: Type.STRING, description: "Main domain of the event for logo lookup" },
-          },
-          required: ["name", "year"],
-        }
+        // Note: responseMimeType: 'application/json' is NOT supported when using tools.
+        // We rely on the prompt to generate JSON.
       }
     });
 
-    if (response.text) {
-      const data = JSON.parse(response.text);
-      // Ensure all fields have defaults to prevent 'undefined' values which crash Firestore
-      return {
-        name: data.name || '',
-        venue: data.venue || '',
-        location: data.location || '',
-        dates: data.dates || '',
-        year: data.year || '',
-        promoter: data.promoter || '',
-        logoUrl: data.domainHint ? `https://logo.clearbit.com/${data.domainHint}` : ''
-      };
-    }
+    let text = response.text || "{}";
+
+    // Clean up potential markdown code blocks if the model ignores the "no markdown" instruction
+    text = text.replace(/```json\n?/g, '').replace(/```/g, '').trim();
     
-    throw new Error("No response text generated from Gemini");
+    // Robust extraction: find the first '{' and last '}'
+    const firstBrace = text.indexOf('{');
+    const lastBrace = text.lastIndexOf('}');
+    if (firstBrace !== -1 && lastBrace !== -1) {
+        text = text.substring(firstBrace, lastBrace + 1);
+    }
+
+    let data: any = {};
+    try {
+        data = JSON.parse(text);
+    } catch (e) {
+        console.error("Failed to parse Gemini JSON response", text);
+        // Fallback to empty object to allow manual entry
+    }
+
+    return {
+      name: data.name || '',
+      venue: data.venue || '',
+      location: data.location || '',
+      dates: data.dates || '',
+      year: data.year || '',
+      promoter: data.promoter || '',
+      logoUrl: data.domainHint ? `https://logo.clearbit.com/${data.domainHint}` : ''
+    };
+    
   } catch (error) {
     console.error("Gemini Analysis Error:", error);
     

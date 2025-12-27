@@ -11,20 +11,28 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    // Helper to get the current user's profile
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
     // --- User Profiles ---
     // Collection: /users
     // Document: {userId} (Matches Auth UID)
     match /users/{userId} {
-      // Users can only read and write their own profile document.
+      // Users can read/write their own profile.
       allow read, write: if request.auth != null && request.auth.uid == userId;
     }
 
     // --- Projects ---
     // Collection: /projects (Root Level)
-    // Document: {projectId} AND all subcollections (schema, responses)
+    // Document: {projectId} AND all subcollections
     match /projects/{projectId}/{document=**} {
-      // All authenticated users have full read/write access to projects and their subcollections.
-      allow read, write: if request.auth != null;
+      // Allow if Admin ('all') OR if projectId is in their allowed list
+      allow read, write: if request.auth != null && (
+        getUserData().accessLevel == 'all' || 
+        projectId in getUserData().accessLevel
+      );
     }
   }
 }
@@ -54,21 +62,13 @@ service firebase.storage {
 
 ## Explanation
 
-1.  **Users Collection (`/users/{userId}`)**:
-    *   **Strict Ownership**: The rule `request.auth.uid == userId` ensures a user can only access the document that matches their User ID. This applies to creation, reading, and updating.
-
-2.  **Projects Collection (`/projects/{projectId}/{document=**}`)**:
-    *   **Recursive Access**: The `{document=**}` wildcard matches the project document *and* any document deeply nested within it (like `/projects/123/schema/abc` or `/projects/123/responses/xyz`).
-    *   **Open Access**: `allow read, write: if request.auth != null;` grants full access to any logged-in user, facilitating a collaborative workspace at the root level and for all dataset uploads.
-
-3.  **Storage (`/project_CSVs` & `/project_assets`)**:
-    *   Authenticated users can read and write files to the `project_CSVs` and `project_assets` folders, enabling file synchronization and logo uploads.
-    *   Updated to match `{allPaths=**}` recursively under these folders to prevent path mismatch issues.
+1.  **RBAC Logic**: The `getUserData()` function fetches the requestor's profile from the `users` collection.
+2.  **Access Verification**: 
+    *   If `userData.accessLevel == 'all'`, the user has full access (Admin).
+    *   If `userData.accessLevel` is an array, the rule checks if `projectId` exists inside that array (`projectId in userData.accessLevel`).
+3.  **Strict Enforcement**: Even if a Guest tries to access a project via direct ID, these rules will block the read/write if the ID is not in their allow-list.
 
 ## Troubleshooting
 
-If you still see "Missing or insufficient permissions":
-1.  **Check Path**: Verify your database actually has a `projects` collection at the root (refresh the Data tab).
-2.  **Wait**: Rules can take up to a minute to propagate after publishing.
-3.  **Logout/Login**: Sometimes the auth token needs to refresh.
-4.  **Check Console**: Ensure you pasted the rules exactly as above into the Firebase Console.
+1.  **Permission Denied?** Ensure your user document in Firestore has the correct `accessLevel` field. For admins, set it to the string `"all"`.
+2.  **Quota Issues**: Using `get()` in rules costs 1 read operation per rule evaluation. This is standard for metadata-driven permissions.

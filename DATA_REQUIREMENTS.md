@@ -26,7 +26,7 @@ Projects are stored as documents in the Firestore database. This metadata drives
 
 ## 2. User Profile (Firestore)
 
-User profiles are strictly one-to-one with Firebase Auth accounts. They are created during registration and used to manage personal details.
+User profiles are strictly one-to-one with Firebase Auth accounts. They are used for identity and access control.
 
 **Collection Path:** `users`
 **Document ID:** `{userId}` (Matches Firebase Auth UID)
@@ -37,7 +37,12 @@ User profiles are strictly one-to-one with Firebase Auth accounts. They are crea
 | `email` | String | Yes | User's email address | `jane@example.com` |
 | `fullName` | String | Yes | Display Name | "Jane Doe" |
 | `companyName` | String | Yes | Organization Name | "Eventcore Inc" |
+| `accessLevel` | Mixed | Yes | RBAC Settings | `"all"` or `["proj_1", "proj_2"]` |
 | `createdAt` | Number | Yes | Unix timestamp (ms) | `1715620000000` |
+
+### Access Level Details
+- **Admin**: `accessLevel` = `"all"` (String). Has full read/write access to all projects.
+- **Guest**: `accessLevel` = `["id_1", "id_2"]` (Array of Strings). Has Read-Only access to specific projects.
 
 ---
 

@@ -54,6 +54,7 @@ export const registerUser = async (email: string, password: string, fullName: st
       fullName: fullName,
       companyName: company,
       email: email,
+      accessLevel: [], // Default: Guest with no project access
       createdAt: Date.now()
     });
 
@@ -91,6 +92,7 @@ export const ensureUserProfileExists = async (user: User) => {
                 email: user.email || "",
                 fullName: user.displayName || "User",
                 companyName: "Unassigned",
+                accessLevel: [], // Default: Guest
                 createdAt: Date.now()
             }, { merge: true });
         }

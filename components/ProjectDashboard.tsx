@@ -5,9 +5,10 @@ import { Project } from '../types';
 interface ProjectDashboardProps {
   project: Project;
   onBack: () => void;
+  readOnly?: boolean;
 }
 
-const ProjectDashboard: React.FC<ProjectDashboardProps> = ({ project, onBack }) => {
+const ProjectDashboard: React.FC<ProjectDashboardProps> = ({ project, onBack, readOnly }) => {
   return (
     <div className="min-h-screen bg-[#F8FAFC] dark:bg-slate-950 flex flex-col animate-in fade-in duration-500 transition-colors">
        <div className="h-16 bg-white dark:bg-slate-900 border-b dark:border-slate-800 flex items-center px-6 justify-between shadow-sm transition-colors">
@@ -22,7 +23,9 @@ const ProjectDashboard: React.FC<ProjectDashboardProps> = ({ project, onBack }) 
           </div>
           <div className="flex items-center gap-4">
              <div className="h-8 w-px bg-slate-100 dark:bg-slate-800"></div>
-             <button className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl text-slate-400 dark:text-slate-500 transition-colors"><Settings className="w-5 h-5" /></button>
+             {!readOnly && (
+                <button className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl text-slate-400 dark:text-slate-500 transition-colors"><Settings className="w-5 h-5" /></button>
+             )}
           </div>
        </div>
        <div className="flex-1 flex flex-col items-center justify-center p-10">

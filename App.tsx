@@ -5,10 +5,11 @@ import {
   Plus, 
   Search, 
   Filter,
-  Loader2
+  Loader2,
+  Lock
 } from 'lucide-react';
 import { onAuthStateChanged, signInWithCustomToken, User } from 'firebase/auth';
-import { collection, addDoc, onSnapshot, query, doc, updateDoc, setDoc, deleteField } from 'firebase/firestore';
+import { collection, addDoc, onSnapshot, query, doc, updateDoc, setDoc, deleteField, where, documentId } from 'firebase/firestore';
 
 import { 
   auth, 
@@ -117,18 +118,50 @@ export default function App() {
       };
   }, [user]);
 
-  // Data Sync
+  // Data Sync - RBAC Implementation
   useEffect(() => {
+    // Wait for BOTH user and profile to be loaded to determine access level
     if (!user) {
         setProjects([]);
         setLoading(false);
         return;
     }
 
+    if (!userProfile) {
+        // Keep loading while we fetch profile
+        return;
+    }
+
     setLoading(true);
-    // SIMPLIFIED PATH: Root 'projects' collection
-    const projectsRef = collection(db, 'projects');
-    const q = query(projectsRef);
+
+    // Fix: Cast accessLevel to loose type to allow robust parsing of potential CSV strings
+    const rawAccess = userProfile.accessLevel as string | string[];
+    let accessList: string[] = [];
+    let isAdmin = false;
+
+    // Robust parsing: Handle Array or comma-separated string
+    if (rawAccess === 'all') {
+        isAdmin = true;
+    } else if (Array.isArray(rawAccess)) {
+        accessList = rawAccess;
+    } else if (typeof rawAccess === 'string') {
+        accessList = rawAccess.split(',').map(s => s.trim()).filter(s => s.length > 0);
+    }
+
+    let q;
+
+    if (isAdmin) {
+        // ADMIN: Fetch all projects
+        q = query(collection(db, 'projects'));
+    } else if (accessList.length > 0) {
+        // GUEST: Fetch only allowed projects (Max 30 due to Firestore limits)
+        q = query(collection(db, 'projects'), where(documentId(), 'in', accessList.slice(0, 30)));
+    } else {
+        // GUEST (No Access):
+        setProjects([]);
+        setLoading(false);
+        return;
+    }
 
     const unsubscribeData = onSnapshot(q, 
       (snapshot) => {
@@ -141,14 +174,14 @@ export default function App() {
         if (err.code !== 'permission-denied') {
              console.error("Firestore access error:", err);
         } else {
-             console.warn("Firestore permission denied (likely logout).");
+             console.warn("Firestore permission denied (likely logout or insufficient rights).");
         }
         setLoading(false);
       }
     );
 
     return () => unsubscribeData();
-  }, [user]);
+  }, [user, userProfile]);
 
   // Filtering & Grouping
   const filteredProjects = useMemo(() => {
@@ -282,7 +315,7 @@ export default function App() {
     } catch (e: any) {
       console.error("Error saving project:", e);
       if (e.code === 'permission-denied' || e.code === 'storage/unauthorized') {
-          alert("Permission Denied: Please update your Firebase Storage Rules in the console to allow 'project_assets' and 'project_CSVs' write access.");
+          alert("Permission Denied: You do not have sufficient rights to perform this action.");
       } else {
           const msg = e.message || "Unknown error";
           alert(`Failed to save project. ${msg}`);
@@ -294,6 +327,10 @@ export default function App() {
     e.stopPropagation();
     setModalState({ isOpen: true, project });
   };
+
+  // RBAC Checks
+  const isAdmin = userProfile?.accessLevel === 'all';
+  const isReadOnly = !isAdmin;
 
   // If loading and we have no user, we might be initializing auth. 
   // But if auth is initialized and we have no user, the modal should be open (handled in render).
@@ -310,6 +347,7 @@ export default function App() {
       <ProjectDashboard 
         project={activeProject} 
         onBack={() => setActiveProject(null)} 
+        readOnly={isReadOnly}
       />
     );
   }
@@ -345,12 +383,15 @@ export default function App() {
               />
             </div>
             
-            <button 
-              onClick={() => setModalState({ isOpen: true, project: null })}
-              className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-xl font-bold text-sm shadow-lg shadow-blue-500/20 flex items-center gap-2 transition-all active:scale-95"
-            >
-              <Plus className="w-4 h-4" /> New Project
-            </button>
+            {/* New Project Button - Only for Admins */}
+            {isAdmin && (
+                <button 
+                onClick={() => setModalState({ isOpen: true, project: null })}
+                className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-xl font-bold text-sm shadow-lg shadow-blue-500/20 flex items-center gap-2 transition-all active:scale-95"
+                >
+                <Plus className="w-4 h-4" /> New Project
+                </button>
+            )}
           </div>
         </div>
 
@@ -386,7 +427,17 @@ export default function App() {
                 <p className="text-sm font-bold text-slate-400 uppercase tracking-widest">Loading Analytics Workspace...</p>
             </div>
         ) : Object.keys(groupedProjects).length === 0 ? (
-          <EmptyState onAdd={() => setModalState({ isOpen: true, project: null })} />
+          isAdmin ? (
+             <EmptyState onAdd={() => setModalState({ isOpen: true, project: null })} />
+          ) : (
+            <div className="py-24 flex flex-col items-center justify-center text-center">
+                <div className="w-20 h-20 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center mb-6">
+                    <Lock className="w-8 h-8 text-slate-300 dark:text-slate-600" />
+                </div>
+                <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2">No Projects Assigned</h3>
+                <p className="text-slate-500 dark:text-slate-400 max-w-sm text-sm">You do not currently have access to any event hubs. Please contact an administrator.</p>
+            </div>
+          )
         ) : (
           Object.entries(groupedProjects).map(([group, list]) => (
             <div key={group} className="mb-12 animate-in fade-in slide-in-from-top-4 duration-500">
@@ -404,6 +455,7 @@ export default function App() {
                       viewMode={viewMode} 
                       onSelect={() => setActiveProject(project)}
                       onEdit={(e) => handleEditClick(e, project)}
+                      readOnly={isReadOnly}
                     />
                   ))}
                </div>

@@ -84,8 +84,18 @@ Refer to `GRAPHQL_GENERATION.md` for the Standard Operating Configuration (SOC) 
 
 # Updates Log
 
-## v1.4.1 - Database Simplification
+## v1.5.0 - Role-Based Access Control (RBAC)
 **Status:** Current Release
+
+### Security
+- **Metadata-Driven Permissions**: Access is now governed by the `accessLevel` field in the user's Firestore profile.
+- **Tiers**:
+  - **Admin** (`accessLevel: 'all'`): Full CRUD access to all projects.
+  - **Guest** (`accessLevel: ['id1', 'id2']`): Read-Only access to specific projects.
+- **Dynamic Filtering**: The application now intelligently constructs Firestore queries to only request data the user is permitted to see, ensuring compliance with strict security rules.
+
+## v1.4.1 - Database Simplification
+**Status:** Released
 
 ### Data
 - **Path Update**: Simplified project storage from `artifacts/{appId}/public/data/projects` to a root-level `projects` collection. This improves visibility in the Firebase Console and simplifies security rules.
