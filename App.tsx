@@ -8,9 +8,19 @@ import {
   Loader2
 } from 'lucide-react';
 import { onAuthStateChanged, signInWithCustomToken, User } from 'firebase/auth';
-import { collection, addDoc, onSnapshot, query, doc, updateDoc } from 'firebase/firestore';
+import { collection, addDoc, onSnapshot, query, doc, updateDoc, setDoc, deleteField } from 'firebase/firestore';
 
-import { auth, db, appId, subscribeToUserProfile, ensureUserProfileExists, saveProjectDatasets } from './services/firebase';
+import { 
+  auth, 
+  db, 
+  appId, 
+  subscribeToUserProfile, 
+  ensureUserProfileExists, 
+  saveProjectDatasets,
+  uploadProjectFile,
+  deleteProjectFile,
+  uploadProjectLogo
+} from './services/firebase';
 import { Project, ViewMode, GroupBy, UserProfile } from './types';
 
 import Navbar from './components/Navbar';
@@ -161,7 +171,17 @@ export default function App() {
   }, [filteredProjects, groupBy]);
 
   // Actions
-  const handleSaveProject = async (data: Partial<Project>, schemaData?: any[], responsesData?: any[]) => {
+  const handleSaveProject = async (
+    data: Partial<Project>, 
+    schemaData?: any[], 
+    responsesData?: any[],
+    schemaFile?: File | null,
+    responsesFile?: File | null,
+    deleteSchema?: boolean,
+    deleteResponses?: boolean,
+    logoFile?: File | null,
+    onProgress?: (stage: string, percent: number) => void
+  ) => {
     if (!user) {
         setAuthModalOpen(true);
         return;
@@ -171,41 +191,98 @@ export default function App() {
     const projectsRef = collection(db, 'projects');
     
     // Sanitize data: Firestore throws error if 'undefined' is passed as a value.
-    const cleanData = Object.fromEntries(
+    const cleanData: any = Object.fromEntries(
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
       Object.entries(data).filter(([_, v]) => v !== undefined)
     );
 
     try {
       let projectId = modalState.project?.id;
+      let isNew = false;
 
-      if (projectId) {
-        // Update
-        const projectDoc = doc(db, 'projects', projectId);
-        await updateDoc(projectDoc, {
-          ...cleanData,
-          updatedAt: Date.now()
-        });
-      } else {
-        // Create
-        const docRef = await addDoc(projectsRef, {
+      // If creating new project, generate ID immediately so we can use it for Storage upload
+      if (!projectId) {
+         isNew = true;
+         projectId = doc(projectsRef).id;
+      }
+
+      // --- Storage Operations (Sync) ---
+      
+      // 0. Logo Upload
+      if (logoFile && projectId) {
+          if (onProgress) onProgress("Uploading Logo...", 0);
+          const logoUrl = await uploadProjectLogo(
+              projectId, 
+              logoFile, 
+              (p) => onProgress && onProgress("Uploading Logo...", p)
+          );
+          cleanData.logoUrl = logoUrl;
+      }
+
+      // 1. Schema
+      if (deleteSchema && projectId) {
+          await deleteProjectFile(projectId, 'schema');
+          cleanData.schemaUrl = deleteField();
+          cleanData.schemaSize = deleteField();
+      } else if (schemaFile && projectId) {
+          if (onProgress) onProgress("Uploading Schema...", 0);
+          const url = await uploadProjectFile(
+              projectId, 
+              schemaFile, 
+              'schema',
+              (p) => onProgress && onProgress("Uploading Schema...", p)
+          );
+          cleanData.schemaUrl = url;
+          cleanData.schemaSize = schemaFile.size;
+      }
+
+      // 2. Responses
+      if (deleteResponses && projectId) {
+          await deleteProjectFile(projectId, 'responses');
+          cleanData.responsesUrl = deleteField();
+          cleanData.responsesSize = deleteField();
+      } else if (responsesFile && projectId) {
+          if (onProgress) onProgress("Uploading Responses...", 0);
+          const url = await uploadProjectFile(
+              projectId, 
+              responsesFile, 
+              'responses',
+              (p) => onProgress && onProgress("Uploading Responses...", p)
+          );
+          cleanData.responsesUrl = url;
+          cleanData.responsesSize = responsesFile.size;
+      }
+
+      // --- Firestore Metadata Operation ---
+      if (onProgress) onProgress("Finalizing...", 100);
+      
+      const projectDoc = doc(db, 'projects', projectId);
+      
+      if (isNew) {
+        await setDoc(projectDoc, {
           ...cleanData,
           createdAt: Date.now(),
           ownerId: user.uid
         });
-        projectId = docRef.id;
+      } else {
+        await updateDoc(projectDoc, {
+          ...cleanData,
+          updatedAt: Date.now()
+        });
       }
 
-      // Save Datasets if provided
-      if (schemaData || responsesData) {
+      // --- Firestore Data Rows Operation (Subcollections) ---
+      // We still run this to support the requirement of converting CSV to Firestore Database
+      if ((schemaData && schemaData.length > 0) || (responsesData && responsesData.length > 0)) {
+          if (onProgress) onProgress("Processing Datasets...", 100);
           await saveProjectDatasets(projectId, schemaData, responsesData);
       }
 
       setModalState({ isOpen: false, project: null });
     } catch (e: any) {
       console.error("Error saving project:", e);
-      if (e.code === 'permission-denied') {
-          alert("Permission Denied: Please update your Firestore Rules in the Firebase Console to allow access to the 'projects' collection.");
+      if (e.code === 'permission-denied' || e.code === 'storage/unauthorized') {
+          alert("Permission Denied: Please update your Firebase Storage Rules in the console to allow 'project_assets' and 'project_CSVs' write access.");
       } else {
           const msg = e.message || "Unknown error";
           alert(`Failed to save project. ${msg}`);

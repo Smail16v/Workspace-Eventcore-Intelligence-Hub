@@ -3,6 +3,7 @@ export interface Project {
   name: string;
   venue: string;
   location: string;
+  country?: string; // New field
   dates: string;
   year: string;
   promoter: string;
@@ -10,6 +11,12 @@ export interface Project {
   ownerId?: string;
   createdAt?: number;
   updatedAt?: number;
+  // Storage URLs for synced CSVs
+  schemaUrl?: string;
+  responsesUrl?: string;
+  // File Meta
+  schemaSize?: number;
+  responsesSize?: number;
 }
 
 export interface UserProfile {

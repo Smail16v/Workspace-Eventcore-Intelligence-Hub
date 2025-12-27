@@ -10,6 +10,7 @@ import {
   User
 } from 'firebase/auth';
 import { getFirestore, doc, setDoc, getDoc, updateDoc, deleteDoc, onSnapshot, writeBatch, collection } from 'firebase/firestore';
+import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject, uploadBytesResumable } from 'firebase/storage';
 import { UserProfile } from '../types';
 
 // Default configuration provided
@@ -33,10 +34,10 @@ try {
 }
 
 // Initialize Firebase
-// If config is missing or invalid, this might throw, enforcing valid credentials requirement.
 export const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
+export const storage = getStorage(app);
 export const appId = typeof window.__app_id !== 'undefined' ? window.__app_id : 'eventcore-workspace';
 
 // --- Authentication Helpers ---
@@ -76,13 +77,11 @@ export const ensureUserProfileExists = async (user: User) => {
     if (!user) return;
     
     try {
-        // Race Condition Guard: If the user has signed out (e.g. during registration flow), abort.
         if (!auth.currentUser || auth.currentUser.uid !== user.uid) return;
 
         const userDocRef = doc(db, "users", user.uid);
         const userSnapshot = await getDoc(userDocRef);
 
-        // Guard again after async operation
         if (!auth.currentUser || auth.currentUser.uid !== user.uid) return;
 
         if (!userSnapshot.exists()) {
@@ -96,9 +95,6 @@ export const ensureUserProfileExists = async (user: User) => {
             }, { merge: true });
         }
     } catch (e: any) {
-        // Silently suppress permission errors. These often happen due to auth race conditions
-        // (like sign-out during registration) and are usually harmless as the profile is likely
-        // already being handled by the main flow.
         if (e.code === 'permission-denied') {
              return; 
         }
@@ -111,18 +107,15 @@ export const loginUser = async (email: string, password: string) => {
         const userCredential = await signInWithEmailAndPassword(auth, email, password);
         const user = userCredential.user;
 
-        // Check if email is verified
         if (!user.emailVerified) {
-            await signOut(auth); // Log them out immediately
+            await signOut(auth); 
             return { error: "Email not verified. Please check your inbox and click the verification link." };
         }
 
-        // --- Sync Logic: Ensure Firestore Document Exists ---
         await ensureUserProfileExists(user);
 
         return { success: true };
     } catch (error: any) {
-        // Map common error codes to friendly messages
         if (error.code === 'auth/invalid-credential') return { error: "Invalid email or password." };
         if (error.code === 'auth/user-not-found') return { error: "No account found." };
         if (error.code === 'auth/wrong-password') return { error: "Incorrect password." };
@@ -159,8 +152,6 @@ export const subscribeToUserProfile = (uid: string, callback: (profile: UserProf
             }
         },
         (error) => {
-            // Suppress "Missing or insufficient permissions" error logging if expected (e.g. during logout)
-            // The logic in App.tsx should prevent this, but this is a failsafe.
             if (error.code !== 'permission-denied') {
                 console.error("Error subscribing to user profile:", error);
             }
@@ -180,10 +171,7 @@ export const deleteUserAccount = async () => {
     if (!user) return;
 
     try {
-        // 1. Delete Firestore Document
         await deleteDoc(doc(db, "users", user.uid));
-        
-        // 2. Delete Auth User
         await deleteUser(user);
     } catch (error) {
         console.error("Error deleting account:", error);
@@ -191,20 +179,83 @@ export const deleteUserAccount = async () => {
     }
 };
 
+// --- Storage Management ---
+
+export const uploadProjectFile = (
+  projectId: string, 
+  file: File, 
+  type: 'schema' | 'responses',
+  onProgress?: (progress: number) => void
+): Promise<string> => {
+    return new Promise((resolve, reject) => {
+        // Folder structure: project_CSVs/{projectId}/{type}.csv
+        // Using .csv extension explicitly as these are strictly CSVs
+        const storageRef = ref(storage, `project_CSVs/${projectId}/${type}.csv`);
+        const uploadTask = uploadBytesResumable(storageRef, file);
+
+        uploadTask.on('state_changed', 
+            (snapshot) => {
+                const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+                if (onProgress) onProgress(progress);
+            },
+            (error) => reject(error),
+            async () => {
+                const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+                resolve(downloadURL);
+            }
+        );
+    });
+};
+
+export const uploadProjectLogo = (
+    projectId: string, 
+    file: File,
+    onProgress?: (progress: number) => void
+): Promise<string> => {
+    return new Promise((resolve, reject) => {
+        // Preserve extension if possible
+        const ext = file.name.split('.').pop() || 'png';
+        const storageRef = ref(storage, `project_assets/${projectId}/logo.${ext}`);
+        const uploadTask = uploadBytesResumable(storageRef, file);
+
+        uploadTask.on('state_changed', 
+            (snapshot) => {
+                const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+                if (onProgress) onProgress(progress);
+            },
+            (error) => reject(error),
+            async () => {
+                const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+                resolve(downloadURL);
+            }
+        );
+    });
+};
+
+export const deleteProjectFile = async (projectId: string, type: 'schema' | 'responses') => {
+    const storageRef = ref(storage, `project_CSVs/${projectId}/${type}.csv`);
+    try {
+        await deleteObject(storageRef);
+    } catch (e: any) {
+        // Ignore if file doesn't exist
+        if (e.code !== 'storage/object-not-found') {
+            console.error(`Error deleting ${type} file:`, e);
+            throw e;
+        }
+    }
+};
+
 // --- Bulk Data Management ---
 
-// Helper to sanitize object keys for Firestore (no dots, no undefined values)
 const sanitizeFirestoreData = (data: any) => {
   if (!data || typeof data !== 'object') return {};
   const clean: any = {};
   
   Object.keys(data).forEach(key => {
-    // Replace dots with underscores in keys
     const cleanKey = key.replace(/\./g, '_').trim();
     if (!cleanKey) return;
 
     const value = data[key];
-    // Filter out undefined values
     if (value !== undefined) {
       clean[cleanKey] = value;
     }
@@ -212,10 +263,6 @@ const sanitizeFirestoreData = (data: any) => {
   return clean;
 };
 
-/**
- * Uploads arrays of objects to Firestore subcollections in batches.
- * Firestore limits batches to 500 operations.
- */
 export const saveProjectDatasets = async (
   projectId: string, 
   schemaRows?: any[], 
@@ -227,7 +274,6 @@ export const saveProjectDatasets = async (
     
     console.log(`Starting batch upload for ${collectionName}: ${total} rows`);
 
-    // Process in chunks
     for (let i = 0; i < total; i += BATCH_SIZE) {
       const chunk = rows.slice(i, i + BATCH_SIZE);
       const batch = writeBatch(db);
@@ -235,7 +281,6 @@ export const saveProjectDatasets = async (
 
       chunk.forEach((row) => {
         const cleanRow = sanitizeFirestoreData(row);
-        // Only add if row has data
         if (Object.keys(cleanRow).length > 0) {
            const docRef = doc(collection(db, 'projects', projectId, collectionName));
            batch.set(docRef, cleanRow);

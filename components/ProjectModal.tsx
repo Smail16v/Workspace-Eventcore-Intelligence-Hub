@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, ImageIcon, Plus, Sparkles, Link as LinkIcon, Loader2, FileSpreadsheet, FileCheck, Upload, AlertCircle, CheckCircle2, ArrowRight, RefreshCw, DownloadCloud, AlertTriangle } from 'lucide-react';
+import { X, ImageIcon, Plus, Sparkles, Link as LinkIcon, Loader2, FileSpreadsheet, FileCheck, Upload, AlertCircle, CheckCircle2, ArrowRight, RefreshCw, DownloadCloud, AlertTriangle, Trash2, Eye } from 'lucide-react';
 import Papa from 'papaparse';
 import { Project } from '../types';
 import { analyzeEventContext } from '../services/geminiService';
@@ -8,8 +8,26 @@ import { listSurveys, importSurveyData, QualtricsSurvey } from '../services/qual
 interface ProjectModalProps {
   project: Project | null;
   onClose: () => void;
-  onSave: (data: Partial<Project>, schemaData?: any[], responsesData?: any[]) => Promise<void>;
+  onSave: (
+      data: Partial<Project>, 
+      schemaData?: any[], 
+      responsesData?: any[],
+      schemaFile?: File | null,
+      responsesFile?: File | null,
+      deleteSchema?: boolean,
+      deleteResponses?: boolean,
+      logoFile?: File | null,
+      onProgress?: (stage: string, percent: number) => void
+    ) => Promise<void>;
 }
+
+const formatFileSize = (bytes?: number) => {
+  if (!bytes) return '';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
+};
 
 const ProjectModal: React.FC<ProjectModalProps> = ({ project, onClose, onSave }) => {
   const isEditing = !!project;
@@ -18,6 +36,7 @@ const ProjectModal: React.FC<ProjectModalProps> = ({ project, onClose, onSave })
   const [analysisError, setAnalysisError] = useState<string | null>(null);
   const [importMode, setImportMode] = useState<'ai' | 'qualtrics'>('ai');
   const [saving, setSaving] = useState(false);
+  const [progress, setProgress] = useState<{ stage: string; percent: number } | null>(null);
   
   // Qualtrics State
   const [surveys, setSurveys] = useState<QualtricsSurvey[]>([]);
@@ -29,9 +48,10 @@ const ProjectModal: React.FC<ProjectModalProps> = ({ project, onClose, onSave })
   const schemaInputRef = useRef<HTMLInputElement>(null);
   const responsesInputRef = useRef<HTMLInputElement>(null);
 
+  // File State
   const [uploadedFiles, setUploadedFiles] = useState({
-    schema: isEditing ? true : false,
-    responses: isEditing ? true : false
+    schema: !!project?.schemaUrl,
+    responses: !!project?.responsesUrl
   });
 
   const [selectedFiles, setSelectedFiles] = useState<{
@@ -39,10 +59,19 @@ const ProjectModal: React.FC<ProjectModalProps> = ({ project, onClose, onSave })
     responses: File | null;
   }>({ schema: null, responses: null });
 
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+
+  // Delete Flags
+  const [filesToDelete, setFilesToDelete] = useState({
+    schema: false,
+    responses: false
+  });
+
   const [formData, setFormData] = useState<Partial<Project>>({
     name: '',
     venue: '',
     location: '',
+    country: '',
     dates: '',
     year: new Date().getFullYear().toString(),
     promoter: 'Eventcore',
@@ -51,14 +80,31 @@ const ProjectModal: React.FC<ProjectModalProps> = ({ project, onClose, onSave })
 
   useEffect(() => {
     if (project) {
+        // Attempt to split location if country isn't set (backward compatibility)
+        let loc = project.location || '';
+        let country = project.country || '';
+        
+        if (!country && loc.includes('•')) {
+           const parts = loc.split('•');
+           loc = parts[0].trim();
+           country = parts[1].trim();
+        }
+
         setFormData({
             name: project.name || '',
             venue: project.venue || '',
-            location: project.location || '',
+            location: loc,
+            country: country,
             dates: project.dates || '',
             year: project.year || '',
             promoter: project.promoter || 'Eventcore',
             logoUrl: project.logoUrl || ''
+        });
+        
+        // Update file presence indicators based on project data
+        setUploadedFiles({
+            schema: !!project.schemaUrl,
+            responses: !!project.responsesUrl
         });
     }
   }, [project]);
@@ -94,6 +140,7 @@ const ProjectModal: React.FC<ProjectModalProps> = ({ project, onClose, onSave })
           setFormData(finalData);
           setSelectedFiles({ schema: schemaFile, responses: responsesFile });
           setUploadedFiles({ schema: true, responses: true });
+          setFilesToDelete({ schema: false, responses: false }); // Reset delete flags
           
           // Automatically trigger save flow
           await handleSaveInternal(finalData, schemaFile, responsesFile);
@@ -112,7 +159,26 @@ const ProjectModal: React.FC<ProjectModalProps> = ({ project, onClose, onSave })
     setAnalysisError(null);
     try {
       const data = await analyzeEventContext(url);
-      setFormData(prev => ({ ...prev, ...data }));
+      // Ensure separate fields
+      let loc = data.location || '';
+      let country = '';
+      if (loc.includes('•')) {
+          const parts = loc.split('•');
+          loc = parts[0].trim();
+          country = parts[1].trim();
+      } else if (loc.includes(',')) {
+          // Simple heuristic: last part is country
+          const parts = loc.split(',');
+          country = parts.pop()?.trim() || '';
+          loc = parts.join(',').trim();
+      }
+
+      setFormData(prev => ({ 
+          ...prev, 
+          ...data,
+          location: loc,
+          country: country 
+      }));
     } catch (e: any) {
       console.error("Analysis Failed", e);
       setAnalysisError("Failed to extract details. Please try again or fill manually.");
@@ -122,8 +188,30 @@ const ProjectModal: React.FC<ProjectModalProps> = ({ project, onClose, onSave })
   };
 
   const handleFileClick = (type: 'schema' | 'responses') => {
+    // Prevent opening file dialog if a file is already uploaded/synced. User must delete first.
+    if (uploadedFiles[type]) return;
+
     if (type === 'schema') schemaInputRef.current?.click();
     if (type === 'responses') responsesInputRef.current?.click();
+  };
+
+  const handleFileDelete = (e: React.MouseEvent, type: 'schema' | 'responses') => {
+    e.stopPropagation();
+    setUploadedFiles(prev => ({ ...prev, [type]: false }));
+    setSelectedFiles(prev => ({ ...prev, [type]: null }));
+    setFilesToDelete(prev => ({ ...prev, [type]: true }));
+    
+    // Reset the input value so the same file can be selected again if needed
+    if (type === 'schema' && schemaInputRef.current) schemaInputRef.current.value = '';
+    if (type === 'responses' && responsesInputRef.current) responsesInputRef.current.value = '';
+  };
+
+  const handleViewFile = (e: React.MouseEvent, type: 'schema' | 'responses') => {
+      e.stopPropagation();
+      const url = type === 'schema' ? project?.schemaUrl : project?.responsesUrl;
+      if (url) {
+          window.open(url, '_blank');
+      }
   };
 
   const handleFileChange = (type: 'schema' | 'responses', e: React.ChangeEvent<HTMLInputElement>) => {
@@ -131,12 +219,14 @@ const ProjectModal: React.FC<ProjectModalProps> = ({ project, onClose, onSave })
     if (file) {
       setSelectedFiles(prev => ({ ...prev, [type]: file }));
       setUploadedFiles(prev => ({ ...prev, [type]: true }));
+      setFilesToDelete(prev => ({ ...prev, [type]: false })); // We are uploading, so don't delete
     }
   };
 
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      setLogoFile(file);
       const reader = new FileReader();
       reader.onloadend = () => {
         setFormData(prev => ({ ...prev, logoUrl: reader.result as string }));
@@ -162,24 +252,49 @@ const ProjectModal: React.FC<ProjectModalProps> = ({ project, onClose, onSave })
     responsesFile: File | null
   ) => {
     setSaving(true);
+    setProgress({ stage: 'Initializing...', percent: 0 });
     try {
         let schemaData: any[] = [];
         let responsesData: any[] = [];
 
         if (schemaFile) {
+            setProgress({ stage: 'Parsing Schema CSV...', percent: 10 });
             schemaData = await parseCsvFile(schemaFile);
         }
 
         if (responsesFile) {
+            setProgress({ stage: 'Parsing Responses CSV...', percent: 20 });
             responsesData = await parseCsvFile(responsesFile);
         }
+        
+        setProgress({ stage: 'Starting Uploads...', percent: 30 });
 
-        await onSave(dataToSave, schemaData, responsesData);
+        // Recombine location for legacy support if needed, or store as is.
+        // For UI display in Dashboard, we might assume location + country
+        const finalData = { ...dataToSave };
+        if (finalData.location && finalData.country) {
+            // Optional: You can choose to store a composite string if your other components expect it, 
+            // but the clean way is to store them separately as defined in types.ts.
+            // Current types.ts has 'location' and 'country'.
+        }
+
+        await onSave(
+            finalData, 
+            schemaData, 
+            responsesData, 
+            schemaFile, 
+            responsesFile,
+            filesToDelete.schema,
+            filesToDelete.responses,
+            logoFile,
+            (stage, percent) => setProgress({ stage, percent })
+        );
     } catch (e) {
         console.error("Error processing files", e);
         alert("Failed to process CSV files. Please check format.");
     } finally {
         setSaving(false);
+        setProgress(null);
     }
   };
 
@@ -316,17 +431,39 @@ const ProjectModal: React.FC<ProjectModalProps> = ({ project, onClose, onSave })
                    <label className="block text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2 px-1">Venue</label>
                    <input type="text" value={formData.venue} onChange={(e) => setFormData({...formData, venue: e.target.value})} placeholder="e.g. Arthur Ashe Stadium" className="w-full px-5 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800 rounded-2xl outline-none focus:bg-white dark:focus:bg-slate-900 focus:ring-2 focus:ring-blue-500 transition-all text-sm dark:text-white dark:placeholder-slate-500" />
                 </div>
+                
+                {/* Updated Location Inputs */}
                 <div>
-                   <label className="block text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2 px-1">Location / Country</label>
-                   <input type="text" value={formData.location} onChange={(e) => setFormData({...formData, location: e.target.value})} placeholder="e.g. New York, NY • USA" className="w-full px-5 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800 rounded-2xl outline-none focus:bg-white dark:focus:bg-slate-900 focus:ring-2 focus:ring-blue-500 transition-all text-sm dark:text-white dark:placeholder-slate-500" />
+                   <label className="block text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2 px-1">Location (City)</label>
+                   <input type="text" value={formData.location} onChange={(e) => setFormData({...formData, location: e.target.value})} placeholder="e.g. New York, NY" className="w-full px-5 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800 rounded-2xl outline-none focus:bg-white dark:focus:bg-slate-900 focus:ring-2 focus:ring-blue-500 transition-all text-sm dark:text-white dark:placeholder-slate-500" />
+                </div>
+                <div>
+                   <label className="block text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2 px-1">Country</label>
+                   <input type="text" value={formData.country} onChange={(e) => setFormData({...formData, country: e.target.value})} placeholder="e.g. USA" className="w-full px-5 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800 rounded-2xl outline-none focus:bg-white dark:focus:bg-slate-900 focus:ring-2 focus:ring-blue-500 transition-all text-sm dark:text-white dark:placeholder-slate-500" />
+                </div>
+
+                {/* Updated Date/Year Inputs */}
+                <div>
+                   <label className="block text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2 px-1">Event Year</label>
+                   <input type="number" value={formData.year} onChange={(e) => setFormData({...formData, year: e.target.value})} placeholder="e.g. 2025" className="w-full px-5 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800 rounded-2xl outline-none focus:bg-white dark:focus:bg-slate-900 focus:ring-2 focus:ring-blue-500 transition-all text-sm font-bold dark:text-white dark:placeholder-slate-500" />
                 </div>
                 <div>
                    <label className="block text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2 px-1">Dates (JAN 15 - 18)</label>
                    <input type="text" value={formData.dates} onChange={(e) => setFormData({...formData, dates: e.target.value})} placeholder="e.g. AUG 25 - SEP 08" className="w-full px-5 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800 rounded-2xl outline-none focus:bg-white dark:focus:bg-slate-900 focus:ring-2 focus:ring-blue-500 transition-all text-sm font-mono dark:text-white dark:placeholder-slate-500" />
                 </div>
+
                 <div className="col-span-2">
                    <label className="block text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2 px-1">Logo URL (Manual Override)</label>
-                   <input type="text" value={formData.logoUrl} onChange={(e) => setFormData({...formData, logoUrl: e.target.value})} placeholder="https://domain.com/logo.png" className="w-full px-5 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800 rounded-2xl outline-none focus:bg-white dark:focus:bg-slate-900 focus:ring-2 focus:ring-blue-500 transition-all text-xs dark:text-white dark:placeholder-slate-500" />
+                   <input 
+                      type="text" 
+                      value={formData.logoUrl} 
+                      onChange={(e) => {
+                         setFormData({...formData, logoUrl: e.target.value});
+                         setLogoFile(null); // Clear file on manual entry
+                      }} 
+                      placeholder="https://domain.com/logo.png" 
+                      className="w-full px-5 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800 rounded-2xl outline-none focus:bg-white dark:focus:bg-slate-900 focus:ring-2 focus:ring-blue-500 transition-all text-xs dark:text-white dark:placeholder-slate-500" 
+                   />
                 </div>
              </div>
 
@@ -337,7 +474,7 @@ const ProjectModal: React.FC<ProjectModalProps> = ({ project, onClose, onSave })
                 </h5>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                    {/* Schema Upload */}
-                   <div onClick={() => handleFileClick('schema')} className={`p-6 border-2 border-dashed rounded-[24px] flex flex-col gap-3 transition-all cursor-pointer ${uploadedFiles.schema ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-500' : 'bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600'}`}>
+                   <div onClick={() => handleFileClick('schema')} className={`p-6 border-2 border-dashed rounded-[24px] flex flex-col gap-3 transition-all relative ${uploadedFiles.schema ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-500 cursor-default' : 'bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600 cursor-pointer'}`}>
                       <input 
                         type="file" 
                         ref={schemaInputRef} 
@@ -345,6 +482,26 @@ const ProjectModal: React.FC<ProjectModalProps> = ({ project, onClose, onSave })
                         accept=".csv" 
                         className="hidden" 
                       />
+                      {uploadedFiles.schema && (
+                        <div className="absolute top-4 right-4 flex items-center gap-2 z-10">
+                            {project?.schemaUrl && (
+                                <button
+                                    onClick={(e) => handleViewFile(e, 'schema')}
+                                    className="p-2 bg-white dark:bg-slate-800 rounded-full shadow-sm hover:bg-blue-50 dark:hover:bg-blue-900/30 text-slate-400 hover:text-blue-500 transition-colors"
+                                    title="View/Download CSV"
+                                >
+                                    <Eye className="w-4 h-4" />
+                                </button>
+                            )}
+                            <button 
+                                onClick={(e) => handleFileDelete(e, 'schema')} 
+                                className="p-2 bg-white dark:bg-slate-800 rounded-full shadow-sm hover:bg-red-50 dark:hover:bg-red-900/30 text-slate-400 hover:text-red-500 transition-colors"
+                                title="Remove file to update"
+                            >
+                                <Trash2 className="w-4 h-4" />
+                            </button>
+                        </div>
+                      )}
                       <div className="flex items-center justify-between">
                          <div className={`p-2.5 rounded-xl ${uploadedFiles.schema ? 'bg-white dark:bg-slate-900 text-blue-600 shadow-sm' : 'bg-white dark:bg-slate-900 text-slate-300 dark:text-slate-600'}`}>
                             {uploadedFiles.schema ? <FileCheck className="w-5 h-5" /> : <Upload className="w-5 h-5" />}
@@ -354,15 +511,22 @@ const ProjectModal: React.FC<ProjectModalProps> = ({ project, onClose, onSave })
                          </span>
                       </div>
                       <div>
-                        <p className={`text-xs font-bold ${uploadedFiles.schema ? 'text-blue-900 dark:text-blue-100' : 'text-slate-400 dark:text-slate-500'}`}>Schema CSV</p>
-                        <p className={`text-[10px] font-bold uppercase tracking-tight mt-1 ${uploadedFiles.schema ? 'text-blue-500 dark:text-blue-400' : 'text-slate-400 dark:text-slate-600'} truncate`}>
-                          {selectedFiles.schema ? selectedFiles.schema.name : (uploadedFiles.schema ? `Q_${formData.name || 'Project'}.csv` : `Pattern: Q_${formData.name || 'Project'}.csv`)}
+                        <div className="flex items-center gap-2">
+                            <p className={`text-xs font-bold ${uploadedFiles.schema ? 'text-blue-900 dark:text-blue-100' : 'text-slate-400 dark:text-slate-500'}`}>Schema CSV</p>
+                            {(selectedFiles.schema?.size || project?.schemaSize) && (
+                                <span className="text-[10px] text-slate-400 dark:text-slate-500 bg-white dark:bg-slate-900 px-1.5 py-0.5 rounded border border-slate-100 dark:border-slate-800 font-mono">
+                                    {formatFileSize(selectedFiles.schema?.size || project?.schemaSize)}
+                                </span>
+                            )}
+                        </div>
+                        <p className={`text-[10px] font-bold uppercase tracking-tight mt-1 ${uploadedFiles.schema ? 'text-blue-500 dark:text-blue-400' : 'text-slate-400 dark:text-slate-600'} truncate pr-16`}>
+                          {selectedFiles.schema ? selectedFiles.schema.name : (uploadedFiles.schema ? (project?.schemaUrl ? 'Synced in Cloud' : `Q_${formData.name || 'Project'}.csv`) : `Pattern: Q_${formData.name || 'Project'}.csv`)}
                         </p>
                       </div>
                    </div>
 
                    {/* Responses Upload */}
-                   <div onClick={() => handleFileClick('responses')} className={`p-6 border-2 border-dashed rounded-[24px] flex flex-col gap-3 transition-all cursor-pointer ${uploadedFiles.responses ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-500' : 'bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600'}`}>
+                   <div onClick={() => handleFileClick('responses')} className={`p-6 border-2 border-dashed rounded-[24px] flex flex-col gap-3 transition-all relative ${uploadedFiles.responses ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-500 cursor-default' : 'bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600 cursor-pointer'}`}>
                       <input 
                         type="file" 
                         ref={responsesInputRef} 
@@ -370,6 +534,26 @@ const ProjectModal: React.FC<ProjectModalProps> = ({ project, onClose, onSave })
                         accept=".csv" 
                         className="hidden" 
                       />
+                      {uploadedFiles.responses && (
+                        <div className="absolute top-4 right-4 flex items-center gap-2 z-10">
+                            {project?.responsesUrl && (
+                                <button
+                                    onClick={(e) => handleViewFile(e, 'responses')}
+                                    className="p-2 bg-white dark:bg-slate-800 rounded-full shadow-sm hover:bg-blue-50 dark:hover:bg-blue-900/30 text-slate-400 hover:text-blue-500 transition-colors"
+                                    title="View/Download CSV"
+                                >
+                                    <Eye className="w-4 h-4" />
+                                </button>
+                            )}
+                            <button 
+                                onClick={(e) => handleFileDelete(e, 'responses')} 
+                                className="p-2 bg-white dark:bg-slate-800 rounded-full shadow-sm hover:bg-red-50 dark:hover:bg-red-900/30 text-slate-400 hover:text-red-500 transition-colors"
+                                title="Remove file to update"
+                            >
+                                <Trash2 className="w-4 h-4" />
+                            </button>
+                        </div>
+                      )}
                       <div className="flex items-center justify-between">
                          <div className={`p-2.5 rounded-xl ${uploadedFiles.responses ? 'bg-white dark:bg-slate-900 text-blue-600 shadow-sm' : 'bg-white dark:bg-slate-900 text-slate-300 dark:text-slate-600'}`}>
                             {uploadedFiles.responses ? <FileCheck className="w-5 h-5" /> : <Upload className="w-5 h-5" />}
@@ -379,9 +563,16 @@ const ProjectModal: React.FC<ProjectModalProps> = ({ project, onClose, onSave })
                          </span>
                       </div>
                       <div>
-                        <p className={`text-xs font-bold ${uploadedFiles.responses ? 'text-blue-900 dark:text-blue-100' : 'text-slate-400 dark:text-slate-500'}`}>Responses CSV</p>
-                        <p className={`text-[10px] font-bold uppercase tracking-tight mt-1 ${uploadedFiles.responses ? 'text-blue-500 dark:text-blue-400' : 'text-slate-400 dark:text-slate-600'} truncate`}>
-                          {selectedFiles.responses ? selectedFiles.responses.name : (uploadedFiles.responses ? `RawData_${formData.name || 'Project'}.csv` : `Pattern: RawData_${formData.name || 'Project'}.csv`)}
+                        <div className="flex items-center gap-2">
+                            <p className={`text-xs font-bold ${uploadedFiles.responses ? 'text-blue-900 dark:text-blue-100' : 'text-slate-400 dark:text-slate-500'}`}>Responses CSV</p>
+                            {(selectedFiles.responses?.size || project?.responsesSize) && (
+                                <span className="text-[10px] text-slate-400 dark:text-slate-500 bg-white dark:bg-slate-900 px-1.5 py-0.5 rounded border border-slate-100 dark:border-slate-800 font-mono">
+                                    {formatFileSize(selectedFiles.responses?.size || project?.responsesSize)}
+                                </span>
+                            )}
+                        </div>
+                        <p className={`text-[10px] font-bold uppercase tracking-tight mt-1 ${uploadedFiles.responses ? 'text-blue-500 dark:text-blue-400' : 'text-slate-400 dark:text-slate-600'} truncate pr-16`}>
+                          {selectedFiles.responses ? selectedFiles.responses.name : (uploadedFiles.responses ? (project?.responsesUrl ? 'Synced in Cloud' : `RawData_${formData.name || 'Project'}.csv`) : `Pattern: RawData_${formData.name || 'Project'}.csv`)}
                         </p>
                       </div>
                    </div>
@@ -393,11 +584,29 @@ const ProjectModal: React.FC<ProjectModalProps> = ({ project, onClose, onSave })
              <button onClick={onClose} disabled={saving} className="px-8 py-3 text-sm font-bold text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 transition-colors">Discard</button>
              <button 
                onClick={() => handleSaveInternal(formData, selectedFiles.schema, selectedFiles.responses)}
-               disabled={(!uploadedFiles.schema || !uploadedFiles.responses) || saving}
-               className={`px-12 py-4 rounded-2xl font-bold shadow-xl transition-all flex items-center gap-2 ${(!uploadedFiles.schema || !uploadedFiles.responses || saving) ? 'bg-slate-200 dark:bg-slate-800 text-slate-400 dark:text-slate-600 cursor-not-allowed shadow-none' : 'bg-blue-600 text-white shadow-blue-500/30 hover:bg-blue-700 hover:scale-105 active:scale-95'}`}
+               disabled={saving}
+               className={`px-12 py-4 rounded-2xl font-bold shadow-xl transition-all flex items-center gap-2 ${saving ? 'bg-slate-200 dark:bg-slate-800 text-slate-400 dark:text-slate-600 cursor-not-allowed shadow-none min-w-[200px] justify-center' : 'bg-blue-600 text-white shadow-blue-500/30 hover:bg-blue-700 hover:scale-105 active:scale-95'}`}
              >
-                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : (isEditing ? 'Save Changes' : 'Initialize Hub')} 
-                {!saving && <ArrowRight className="w-4 h-4" />}
+                {saving ? (
+                   <div className="flex items-center gap-3">
+                      <Loader2 className="w-4 h-4 animate-spin shrink-0" />
+                      {progress ? (
+                         <div className="flex flex-col items-start w-full">
+                             <span className="text-[10px] uppercase font-bold tracking-widest leading-none mb-1.5">{progress.stage}</span>
+                             <div className="w-32 h-1 bg-slate-400/20 rounded-full overflow-hidden">
+                                <div className="h-full bg-slate-400 dark:bg-slate-500 transition-all duration-300" style={{ width: `${progress.percent}%` }}></div>
+                             </div>
+                         </div>
+                      ) : (
+                         <span>Processing...</span>
+                      )}
+                   </div>
+                ) : (
+                  <>
+                    {isEditing ? 'Save Changes' : 'Initialize Hub'} 
+                    <ArrowRight className="w-4 h-4" />
+                  </>
+                )} 
              </button>
           </div>
        </div>

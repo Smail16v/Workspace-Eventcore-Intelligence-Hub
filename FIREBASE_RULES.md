@@ -4,7 +4,7 @@
 
 To resolve the permission errors, copy the following rules into your Firebase Console > Firestore Database > Rules tab.
 
-## Security Rules
+## Firestore Rules
 
 ```javascript
 rules_version = '2';
@@ -30,6 +30,28 @@ service cloud.firestore {
 }
 ```
 
+## Storage Rules
+
+Go to the **Storage** tab in Firebase Console > Rules and paste this:
+
+```javascript
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    
+    // Allow authenticated users to upload and delete project CSVs
+    match /project_CSVs/{allPaths=**} {
+      allow read, write: if request.auth != null;
+    }
+
+    // Allow authenticated users to upload project assets (logos, etc)
+    match /project_assets/{allPaths=**} {
+      allow read, write: if request.auth != null;
+    }
+  }
+}
+```
+
 ## Explanation
 
 1.  **Users Collection (`/users/{userId}`)**:
@@ -38,6 +60,10 @@ service cloud.firestore {
 2.  **Projects Collection (`/projects/{projectId}/{document=**}`)**:
     *   **Recursive Access**: The `{document=**}` wildcard matches the project document *and* any document deeply nested within it (like `/projects/123/schema/abc` or `/projects/123/responses/xyz`).
     *   **Open Access**: `allow read, write: if request.auth != null;` grants full access to any logged-in user, facilitating a collaborative workspace at the root level and for all dataset uploads.
+
+3.  **Storage (`/project_CSVs` & `/project_assets`)**:
+    *   Authenticated users can read and write files to the `project_CSVs` and `project_assets` folders, enabling file synchronization and logo uploads.
+    *   Updated to match `{allPaths=**}` recursively under these folders to prevent path mismatch issues.
 
 ## Troubleshooting
 
