@@ -9,7 +9,7 @@ import {
   deleteUser,
   User
 } from 'firebase/auth';
-import { getFirestore, doc, setDoc, getDoc, updateDoc, deleteDoc, onSnapshot, writeBatch, collection } from 'firebase/firestore';
+import { getFirestore, doc, setDoc, getDoc, updateDoc, deleteDoc, onSnapshot, writeBatch, collection, getDocs } from 'firebase/firestore';
 import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject, uploadBytesResumable } from 'firebase/storage';
 import { UserProfile } from '../types';
 
@@ -104,14 +104,23 @@ export const ensureUserProfileExists = async (user: User) => {
     }
 };
 
+export const resendVerificationEmail = async () => {
+  const user = auth.currentUser;
+  if (user) {
+    await sendEmailVerification(user);
+    return { success: "A new verification link has been sent to your inbox." };
+  }
+  return { error: "No user found. Please sign in again." };
+};
+
 export const loginUser = async (email: string, password: string) => {
     try {
         const userCredential = await signInWithEmailAndPassword(auth, email, password);
         const user = userCredential.user;
 
         if (!user.emailVerified) {
-            await signOut(auth); 
-            return { error: "Email not verified. Please check your inbox and click the verification link." };
+            // DO NOT sign out here immediately; let the UI handle the prompt
+            return { unverified: true, email: user.email };
         }
 
         await ensureUserProfileExists(user);
@@ -142,7 +151,7 @@ export const logoutUser = async () => {
     await signOut(auth);
 };
 
-// --- Profile Management ---
+// --- Profile & Admin Management ---
 
 export const subscribeToUserProfile = (uid: string, callback: (profile: UserProfile | null) => void) => {
     const unsub = onSnapshot(doc(db, "users", uid), 
@@ -179,6 +188,19 @@ export const deleteUserAccount = async () => {
         console.error("Error deleting account:", error);
         throw error;
     }
+};
+
+// -- Admin Functions --
+
+export const fetchAllUsers = async (): Promise<UserProfile[]> => {
+  const usersRef = collection(db, "users");
+  const snapshot = await getDocs(usersRef);
+  return snapshot.docs.map(doc => doc.data() as UserProfile);
+};
+
+export const updateUserAccess = async (uid: string, newAccess: 'all' | string[]) => {
+  const userDocRef = doc(db, "users", uid);
+  await updateDoc(userDocRef, { accessLevel: newAccess });
 };
 
 // --- Storage Management ---

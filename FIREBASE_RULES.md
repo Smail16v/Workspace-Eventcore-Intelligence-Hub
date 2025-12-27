@@ -11,9 +11,16 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Helper to get the current user's profile
+    // Helper to safely get the current user's profile data
     function getUserData() {
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    // Helper to check if the current user exists and is an Admin
+    function isAdmin() {
+      return request.auth != null && 
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             getUserData().get('accessLevel', '') == 'all';
     }
 
     // --- User Profiles ---
@@ -22,16 +29,20 @@ service cloud.firestore {
     match /users/{userId} {
       // Users can read/write their own profile.
       allow read, write: if request.auth != null && request.auth.uid == userId;
+      
+      // Allow Admins to read and update ANY user profile
+      allow read, update: if isAdmin();
     }
 
     // --- Projects ---
     // Collection: /projects (Root Level)
     // Document: {projectId} AND all subcollections
     match /projects/{projectId}/{document=**} {
-      // Allow if Admin ('all') OR if projectId is in their allowed list
+      // Allow if Admin OR if projectId is in their allowed list
       allow read, write: if request.auth != null && (
-        getUserData().accessLevel == 'all' || 
-        projectId in getUserData().accessLevel
+        isAdmin() || 
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+         projectId in getUserData().get('accessLevel', []))
       );
     }
   }
@@ -59,16 +70,3 @@ service firebase.storage {
   }
 }
 ```
-
-## Explanation
-
-1.  **RBAC Logic**: The `getUserData()` function fetches the requestor's profile from the `users` collection.
-2.  **Access Verification**: 
-    *   If `userData.accessLevel == 'all'`, the user has full access (Admin).
-    *   If `userData.accessLevel` is an array, the rule checks if `projectId` exists inside that array (`projectId in userData.accessLevel`).
-3.  **Strict Enforcement**: Even if a Guest tries to access a project via direct ID, these rules will block the read/write if the ID is not in their allow-list.
-
-## Troubleshooting
-
-1.  **Permission Denied?** Ensure your user document in Firestore has the correct `accessLevel` field. For admins, set it to the string `"all"`.
-2.  **Quota Issues**: Using `get()` in rules costs 1 read operation per rule evaluation. This is standard for metadata-driven permissions.

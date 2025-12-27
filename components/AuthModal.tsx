@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { X, Mail, Lock, User, Building, ArrowRight, Loader2, AlertTriangle, CheckCircle2 } from 'lucide-react';
-import { registerUser, loginUser, resetPassword } from '../services/firebase';
+import { registerUser, loginUser, resetPassword, resendVerificationEmail, logoutUser } from '../services/firebase';
 
 interface AuthModalProps {
   onClose: () => void;
@@ -9,7 +9,7 @@ interface AuthModalProps {
 }
 
 const AuthModal: React.FC<AuthModalProps> = ({ onClose, defaultView = 'login', allowClose = true }) => {
-  const [view, setView] = useState<'login' | 'register' | 'forgot'>(defaultView);
+  const [view, setView] = useState<'login' | 'register' | 'forgot' | 'verify'>(defaultView);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
@@ -30,6 +30,13 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, defaultView = 'login', a
     try {
       if (view === 'login') {
         const res = await loginUser(email, password);
+        
+        if (res?.unverified) {
+          setView('verify');
+          setLoading(false);
+          return;
+        }
+        
         if (res.error) throw new Error(res.error);
         onClose();
       } else if (view === 'register') {
@@ -84,12 +91,15 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, defaultView = 'login', a
                  {view === 'login' && 'Welcome Back'}
                  {view === 'register' && 'Create Account'}
                  {view === 'forgot' && 'Reset Password'}
+                 {view === 'verify' && 'Verify Email'}
               </h2>
-              <p className="text-sm text-slate-500 dark:text-slate-400 font-medium mt-1">
-                 {view === 'login' && 'Sign in to access your intelligence hub.'}
-                 {view === 'register' && 'Get started with event analytics today.'}
-                 {view === 'forgot' && 'Enter your email to receive a reset link.'}
-              </p>
+              {view !== 'verify' && (
+                <p className="text-sm text-slate-500 dark:text-slate-400 font-medium mt-1">
+                   {view === 'login' && 'Sign in to access your intelligence hub.'}
+                   {view === 'register' && 'Get started with event analytics today.'}
+                   {view === 'forgot' && 'Enter your email to receive a reset link.'}
+                </p>
+              )}
            </div>
 
            {error && (
@@ -104,73 +114,108 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, defaultView = 'login', a
                </div>
            )}
 
-           <form onSubmit={handleSubmit} className="space-y-4">
-              {view === 'register' && (
-                  <>
-                    <div className="relative">
-                        <User className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
-                        <input type="text" placeholder="Full Name" value={fullName} onChange={e => setFullName(e.target.value)} className="w-full pl-9 pr-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500 transition-all font-bold text-slate-700 dark:text-white placeholder:font-medium dark:placeholder-slate-500" />
-                    </div>
-                    <div className="relative">
-                        <Building className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
-                        <input type="text" placeholder="Company Name" value={company} onChange={e => setCompany(e.target.value)} className="w-full pl-9 pr-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500 transition-all font-bold text-slate-700 dark:text-white placeholder:font-medium dark:placeholder-slate-500" />
-                    </div>
-                  </>
-              )}
-
-              <div className="relative">
-                  <Mail className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
-                  <input type="email" placeholder="Email Address" required value={email} onChange={e => setEmail(e.target.value)} className="w-full pl-9 pr-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500 transition-all font-bold text-slate-700 dark:text-white placeholder:font-medium dark:placeholder-slate-500" />
+           {view === 'verify' ? (
+              <div className="text-center animate-in fade-in">
+                <div className="w-16 h-16 bg-blue-50 dark:bg-blue-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Mail className="w-8 h-8 text-blue-600 dark:text-blue-400" />
+                </div>
+                <h2 className="text-xl font-bold text-slate-900 dark:text-white">Verify Your Email</h2>
+                <p className="text-sm text-slate-500 dark:text-slate-400 mt-2">
+                  We sent a link to <b className="text-slate-900 dark:text-white">{email}</b>. Please click it to activate your account.
+                </p>
+                <button 
+                  onClick={async () => {
+                    const res = await resendVerificationEmail();
+                    if (res.success) setSuccessMsg(res.success as string);
+                    if (res.error) setError(res.error as string);
+                  }}
+                  className="mt-6 text-blue-600 dark:text-blue-400 font-bold hover:underline text-sm"
+                >
+                  Didn't receive it? Resend Link
+                </button>
+                <button 
+                  onClick={() => {
+                     logoutUser(); // Sign out to let them try again after verifying
+                     setView('login');
+                     setError(null);
+                     setSuccessMsg(null);
+                  }}
+                  className="block w-full mt-4 py-2 text-slate-400 dark:text-slate-500 text-xs font-medium hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
+                >
+                  Back to Sign In
+                </button>
               </div>
+           ) : (
+             <form onSubmit={handleSubmit} className="space-y-4">
+                {view === 'register' && (
+                    <>
+                      <div className="relative">
+                          <User className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
+                          <input type="text" placeholder="Full Name" value={fullName} onChange={e => setFullName(e.target.value)} className="w-full pl-9 pr-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500 transition-all font-bold text-slate-700 dark:text-white placeholder:font-medium dark:placeholder-slate-500" />
+                      </div>
+                      <div className="relative">
+                          <Building className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
+                          <input type="text" placeholder="Company Name" value={company} onChange={e => setCompany(e.target.value)} className="w-full pl-9 pr-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500 transition-all font-bold text-slate-700 dark:text-white placeholder:font-medium dark:placeholder-slate-500" />
+                      </div>
+                    </>
+                )}
 
-              {view !== 'forgot' && (
-                  <div className="relative">
-                      <Lock className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
-                      <input type="password" placeholder="Password" required value={password} onChange={e => setPassword(e.target.value)} className="w-full pl-9 pr-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500 transition-all font-bold text-slate-700 dark:text-white placeholder:font-medium dark:placeholder-slate-500" />
-                  </div>
-              )}
+                <div className="relative">
+                    <Mail className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
+                    <input type="email" placeholder="Email Address" required value={email} onChange={e => setEmail(e.target.value)} className="w-full pl-9 pr-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500 transition-all font-bold text-slate-700 dark:text-white placeholder:font-medium dark:placeholder-slate-500" />
+                </div>
 
-              {view === 'register' && (
-                  <div className="relative">
-                      <Lock className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
-                      <input type="password" placeholder="Confirm Password" required value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} className="w-full pl-9 pr-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500 transition-all font-bold text-slate-700 dark:text-white placeholder:font-medium dark:placeholder-slate-500" />
-                  </div>
-              )}
+                {view !== 'forgot' && (
+                    <div className="relative">
+                        <Lock className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
+                        <input type="password" placeholder="Password" required value={password} onChange={e => setPassword(e.target.value)} className="w-full pl-9 pr-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500 transition-all font-bold text-slate-700 dark:text-white placeholder:font-medium dark:placeholder-slate-500" />
+                    </div>
+                )}
 
-              {view === 'login' && (
-                  <div className="text-right">
-                      <button type="button" onClick={() => { setView('forgot'); setError(null); setSuccessMsg(null); }} className="text-xs font-bold text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition-colors">Forgot Password?</button>
-                  </div>
-              )}
+                {view === 'register' && (
+                    <div className="relative">
+                        <Lock className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
+                        <input type="password" placeholder="Confirm Password" required value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} className="w-full pl-9 pr-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500 transition-all font-bold text-slate-700 dark:text-white placeholder:font-medium dark:placeholder-slate-500" />
+                    </div>
+                )}
 
-              <button 
-                type="submit" 
-                disabled={loading}
-                className="w-full py-3 bg-blue-600 text-white rounded-xl font-bold text-sm shadow-lg shadow-blue-500/20 hover:bg-blue-700 active:scale-95 transition-all flex items-center justify-center gap-2"
-              >
-                  {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : (
-                      <>
-                        {view === 'login' && 'Sign In'}
-                        {view === 'register' && 'Create Account'}
-                        {view === 'forgot' && 'Send Reset Link'}
-                        <ArrowRight className="w-4 h-4" />
-                      </>
-                  )}
-              </button>
-           </form>
+                {view === 'login' && (
+                    <div className="text-right">
+                        <button type="button" onClick={() => { setView('forgot'); setError(null); setSuccessMsg(null); }} className="text-xs font-bold text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition-colors">Forgot Password?</button>
+                    </div>
+                )}
 
-           <div className="mt-8 pt-6 border-t border-slate-100 dark:border-slate-800 text-center">
-              {view === 'login' && (
-                  <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
-                      Don't have an account? <button onClick={() => { setView('register'); setError(null); setSuccessMsg(null); }} className="font-bold text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 transition-colors">Sign up</button>
-                  </p>
-              )}
-              {(view === 'register' || view === 'forgot') && (
-                  <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
-                      Already have an account? <button onClick={() => { setView('login'); setError(null); setSuccessMsg(null); }} className="font-bold text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 transition-colors">Sign in</button>
-                  </p>
-              )}
-           </div>
+                <button 
+                  type="submit" 
+                  disabled={loading}
+                  className="w-full py-3 bg-blue-600 text-white rounded-xl font-bold text-sm shadow-lg shadow-blue-500/20 hover:bg-blue-700 active:scale-95 transition-all flex items-center justify-center gap-2"
+                >
+                    {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : (
+                        <>
+                          {view === 'login' && 'Sign In'}
+                          {view === 'register' && 'Create Account'}
+                          {view === 'forgot' && 'Send Reset Link'}
+                          <ArrowRight className="w-4 h-4" />
+                        </>
+                    )}
+                </button>
+             </form>
+           )}
+
+           {view !== 'verify' && (
+             <div className="mt-8 pt-6 border-t border-slate-100 dark:border-slate-800 text-center">
+                {view === 'login' && (
+                    <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
+                        Don't have an account? <button onClick={() => { setView('register'); setError(null); setSuccessMsg(null); }} className="font-bold text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 transition-colors">Sign up</button>
+                    </p>
+                )}
+                {(view === 'register' || view === 'forgot') && (
+                    <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
+                        Already have an account? <button onClick={() => { setView('login'); setError(null); setSuccessMsg(null); }} className="font-bold text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 transition-colors">Sign in</button>
+                    </p>
+                )}
+             </div>
+           )}
         </div>
       </div>
     </div>

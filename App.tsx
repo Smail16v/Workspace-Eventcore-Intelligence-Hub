@@ -6,7 +6,8 @@ import {
   Search, 
   Filter,
   Loader2,
-  Lock
+  Lock,
+  Users
 } from 'lucide-react';
 import { onAuthStateChanged, signInWithCustomToken, User } from 'firebase/auth';
 import { collection, addDoc, onSnapshot, query, doc, updateDoc, setDoc, deleteField, where, documentId } from 'firebase/firestore';
@@ -31,6 +32,7 @@ import ProjectDashboard from './components/ProjectDashboard';
 import EmptyState from './components/EmptyState';
 import AuthModal from './components/AuthModal';
 import ProfileModal from './components/ProfileModal';
+import UserManagementModal from './components/UserManagementModal';
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
@@ -42,6 +44,7 @@ export default function App() {
   const [modalState, setModalState] = useState<{ isOpen: boolean; project: Project | null }>({ isOpen: false, project: null });
   const [authModalOpen, setAuthModalOpen] = useState(true);
   const [profileModalOpen, setProfileModalOpen] = useState(false);
+  const [adminModalOpen, setAdminModalOpen] = useState(false);
   
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
   const [groupBy, setGroupBy] = useState<GroupBy>('none');
@@ -82,16 +85,17 @@ export default function App() {
     
     // Listen for auth state changes
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser);
-      
-      // If a real user is detected
-      if (currentUser) {
+      if (currentUser && currentUser.emailVerified) {
+         // User is authenticated and verified
+         setUser(currentUser);
          setAuthModalOpen(false);
-         // Ensure profile exists (Auto-Heal for restored sessions)
          ensureUserProfileExists(currentUser);
       } else {
+         // User is missing OR user exists but email is not verified
+         // We treat unverified users as 'logged out' for the app context to block access,
+         // but the AuthModal will handle the prompt to verify.
+         setUser(null);
          setUserProfile(null);
-         // Strictly enforce auth modal when no user
          setAuthModalOpen(true);
       }
     });
@@ -383,6 +387,16 @@ export default function App() {
               />
             </div>
             
+            {/* Admin: Manage Users Button */}
+            {isAdmin && (
+              <button 
+                onClick={() => setAdminModalOpen(true)}
+                className="bg-slate-800 hover:bg-slate-900 text-white px-4 py-2.5 rounded-xl font-bold text-sm shadow-lg shadow-slate-500/20 flex items-center gap-2 transition-all active:scale-95"
+              >
+                <Users className="w-4 h-4" /> Manage Users
+              </button>
+            )}
+
             {/* New Project Button - Only for Admins */}
             {isAdmin && (
                 <button 
@@ -484,6 +498,13 @@ export default function App() {
         <ProfileModal 
           profile={userProfile}
           onClose={() => setProfileModalOpen(false)}
+        />
+      )}
+
+      {adminModalOpen && isAdmin && (
+        <UserManagementModal
+          onClose={() => setAdminModalOpen(false)}
+          availableProjects={projects}
         />
       )}
     </div>
