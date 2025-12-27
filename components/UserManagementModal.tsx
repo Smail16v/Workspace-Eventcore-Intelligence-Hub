@@ -86,8 +86,8 @@ const UserManagementModal: React.FC<UserManagementModalProps> = ({ onClose, avai
   };
 
   const filteredUsers = users.filter(u => 
-    u.fullName.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    u.email.toLowerCase().includes(searchTerm.toLowerCase())
+    (u.fullName || '').toLowerCase().includes(searchTerm.toLowerCase()) || 
+    (u.email || '').toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   return (
@@ -159,7 +159,7 @@ const UserManagementModal: React.FC<UserManagementModalProps> = ({ onClose, avai
                                         {isAdmin ? <Shield className="w-5 h-5" /> : <User className="w-5 h-5" />}
                                     </div>
                                     <div className="truncate">
-                                        <h4 className="font-bold text-slate-900 dark:text-white truncate">{user.fullName} {isSelf && <span className="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded ml-2 align-middle">YOU</span>}</h4>
+                                        <h4 className="font-bold text-slate-900 dark:text-white truncate">{user.fullName || 'Unknown User'} {isSelf && <span className="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded ml-2 align-middle">YOU</span>}</h4>
                                         <p className="text-xs text-slate-500 dark:text-slate-400 truncate">{user.email} • {user.companyName}</p>
                                     </div>
                                 </div>
@@ -198,7 +198,7 @@ const UserManagementModal: React.FC<UserManagementModalProps> = ({ onClose, avai
                                                         <div className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${isSelected ? 'bg-blue-500 border-blue-500' : 'bg-white dark:bg-slate-700 border-slate-300 dark:border-slate-600'}`}>
                                                             {isSelected && <Check className="w-3 h-3 text-white" />}
                                                         </div>
-                                                        <span className="truncate">{project.name}</span>
+                                                        <span className="truncate">{project.name || 'Untitled Project'}</span>
                                                     </div>
                                                 );
                                             })}

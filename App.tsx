@@ -190,8 +190,8 @@ export default function App() {
   // Filtering & Grouping
   const filteredProjects = useMemo(() => {
     return projects.filter(p => 
-      p.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      p.venue?.toLowerCase().includes(searchTerm.toLowerCase())
+      (p.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (p.venue || '').toLowerCase().includes(searchTerm.toLowerCase())
     );
   }, [projects, searchTerm]);
 

@@ -1,10 +1,52 @@
 # Updates Log
 
-## v1.2.0 - Documentation Update
+## v1.5.0 - Enterprise Security & Admin Controls
 **Status:** Current Release
 
+### Security
+- **RBAC Re-Implementation**: Re-introduced strict Role-Based Access Control. The "Open Access" model (v1.4.0) has been deprecated in favor of a secure Admin/Guest hierarchy.
+- **Admin Dashboard**: Added a new `UserManagementModal` allowing Administrators to:
+  - View all registered users.
+  - Promote/Demote Admins.
+  - Assign specific project access to Guest users.
+- **Firestore Rules**: Updated rules to enforce read/write permissions based on the `accessLevel` field on the user profile.
+
+### Data Model
+- **Projects**: Added `country` field to better support international event filtering.
+- **Users**: `accessLevel` is now the single source of truth for permissions (superseding previous role fields).
+
+---
+
+## v1.4.1 - Database Simplification
+**Status:** Released
+
+### Data
+- **Path Update**: Simplified project storage from `artifacts/{appId}/public/data/projects` to a root-level `projects` collection. This improves visibility in the Firebase Console and simplifies security rules.
+
+---
+
+## v1.4.0 - Access Control Simplification
+**Status:** Deprecated (Superseded by v1.5.0)
+
+### Security
+- **Open Access Model**: Removed Role-Based Access Control (RBAC). All users had full access.
+
+---
+
+## v1.3.0 - Security & Auth Hardening
+**Status:** Released
+
+### Security
+- **Mandatory Authentication**: Removed all Guest/Demo access paths.
+- **Role Management**: Removed "Role" selection from registration forms.
+
+---
+
+## v1.2.0 - Documentation Update
+**Status:** Released
+
 ### Documentation
-- **Data Requirements**: Added `DATA_REQUIREMENTS.md` detailing the Firestore schema structure and the CSV file formats (`Q_*.csv` and `RawData_*.csv`) required for project initialization.
+- **Data Requirements**: Added `DATA_REQUIREMENTS.md` detailing the Firestore schema structure and the CSV file formats.
 
 ---
 
@@ -12,40 +54,6 @@
 **Status:** Released
 
 ### Features
-- **Mock Mode / Graceful Degradation**: 
-  - Added detection for missing or invalid Firebase API keys.
-  - The app now loads in a "Read-Only" state instead of crashing with `auth/invalid-api-key` errors.
-  - Guest users are alerted when attempting to save data without valid configuration.
-  - **Demo Data Persistence**: In Mock mode, "Initialize Hub" now saves projects to local React state, allowing full UI testing without a database connection.
-- **Gemini 2.5 Integration**: 
-  - Updated AI service to use `gemini-2.5-flash-preview-09-2025`.
-  - Implemented `responseSchema` for strict JSON generation during event context analysis.
-- **Enhanced Error Handling**:
-  - Authentication failures no longer cause infinite loading loops.
-  - Firestore connection failures are logged without breaking the UI.
-
-### Bug Fixes
-- Fixed `Uncaught FirebaseError` when `window.__firebase_config` was undefined.
-- Fixed race conditions in `useEffect` hooks regarding authentication state.
-
----
-
-## v1.0.0 - Initial Workspace Release
-**Status:** Deprecated
-
-### Features
-- **Project Management**: Create, Read, Update event projects.
-- **Real-time Sync**: Firestore integration for live updates.
-- **Views**: Toggle between Grid and List views.
-- **Grouping**: Group projects by Year, Promoter, Venue, or Location.
-- **UI**: Tailwind CSS implementation with `lucide-react` icons.
-- **Simulation**: UI support for "uploading" Schema and Raw Data CSVs (Metadata only).
-
-Here are the specific updates:
-types.ts: Removed role from the UserProfile interface.
-services/firebase.ts: Removed role handling in registerUser and ensureUserProfileExists.
-components/AuthModal.tsx: Removed the role state and updated the registration call.
-components/ProfileModal.tsx: Removed role from the local state and update logic.
-FIREBASE_RULES.md: Simplified rules to allow any authenticated user to create, update, or delete projects (Collaborative Workspace mode).
-DATA_REQUIREMENTS.md: Updated documentation to reflect the removal of the role field.
-ARCHITECTURE.md: Logged the v1.4.0 update.
+- **Mock Mode**: Graceful degradation when API keys are missing.
+- **Gemini 2.5 Integration**: Updated AI service to use `gemini-2.5-flash-preview-09-2025` with Search Grounding.
+- **Enhanced Error Handling**: Authentication failures no longer cause infinite loading loops.
