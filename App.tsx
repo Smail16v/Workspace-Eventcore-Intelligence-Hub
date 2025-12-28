@@ -55,6 +55,7 @@ export default function App() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [syncRunning, setSyncRunning] = useState(false);
+  const [hasSyncedThisSession, setHasSyncedThisSession] = useState(false);
   
   // Modals
   const [modalState, setModalState] = useState<{ isOpen: boolean; project: Project | null }>({ isOpen: false, project: null });
@@ -295,6 +296,7 @@ export default function App() {
       if (isNew) {
         await setDoc(projectDoc, {
           ...cleanData,
+          id: projectId, // Ensure ID is part of the document data
           createdAt: Date.now(),
           ownerId: user.uid
         });
@@ -319,9 +321,9 @@ export default function App() {
 
   // Background Qualtrics Sync
   useEffect(() => {
-    // Only run for logged-in Admins once projects are loaded from Firestore
-    // Using projects.length to trigger on load, but guarding against loops with syncRunning
-    if (!user || !userProfile || userProfile.accessLevel !== 'all' || projects.length === 0 || syncRunning) return;
+    // 1. Only run for Admins after initial project list is loaded
+    // Check loading state and sync session flag to prevent loops
+    if (!user || !userProfile || userProfile.accessLevel !== 'all' || loading || hasSyncedThisSession || syncRunning) return;
 
     const autoSyncQualtrics = async () => {
         setSyncRunning(true);
@@ -332,8 +334,12 @@ export default function App() {
             const availableSurveys = await listSurveys();
 
             for (const survey of availableSurveys) {
-                // Check if project card already exists for this survey ID
-                const existingProject = projects.find(p => p.qualtricsSurveyId === survey.id);
+                // IMPROVED CHECK: Search by qualtricsSurveyId OR Name as fallback
+                // This prevents duplicates if the ID is missing in Firestore but name matches
+                const existingProject = projects.find(p => 
+                    p.qualtricsSurveyId === survey.id || 
+                    (p.name && p.name.toLowerCase() === survey.name.toLowerCase())
+                );
 
                 console.log(`[Auto-Sync] Processing: ${survey.name}`);
 
@@ -350,12 +356,13 @@ export default function App() {
                 // 4. Update or Create logic
                 const finalProjectData = {
                     ...metadata,
-                    qualtricsSurveyId: survey.id,
+                    qualtricsSurveyId: survey.id, // Ensure this is always saved/updated
                     metrics: freshMetrics,
                     updatedAt: Date.now()
                 };
 
                 if (existingProject) {
+                    console.log(`[Auto-Sync] Updating existing card: ${survey.name}`);
                     // SILENT UPDATE: Refresh existing card's CSVs and metrics
                     await handleSaveProject(
                         { ...existingProject, ...finalProjectData },
@@ -364,8 +371,8 @@ export default function App() {
                         responsesFile
                     );
                 } else {
+                    console.log(`[Auto-Sync] Creating new card for: ${survey.name}`);
                     // AUTO-CREATE: New card detected on Qualtrics
-                    console.log(`[Auto-Sync] Creating new card for ${survey.name}`);
                     await handleSaveProject(
                         finalProjectData,
                         [], [], // No database seeding
@@ -374,15 +381,16 @@ export default function App() {
                     );
                 }
             }
+            setHasSyncedThisSession(true);
         } catch (err) {
-            console.error("[Auto-Sync] Failed:", err);
+            console.error("[Auto-Sync] Sync failed:", err);
         } finally {
             setSyncRunning(false);
         }
     };
 
     autoSyncQualtrics();
-  }, [user, userProfile, projects.length]); // Dependencies ensure it runs on app start/load
+  }, [user, userProfile, loading, projects.length]); // Dependencies ensure it runs on app start/load
 
   const handleDeleteProject = async (projectId: string) => {
     if (!user) return;
