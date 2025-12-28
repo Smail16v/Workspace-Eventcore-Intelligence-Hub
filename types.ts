@@ -32,6 +32,7 @@ export interface Project {
   metrics?: ProjectMetrics;
   // Source Linkage
   qualtricsSurveyId?: string;
+  lastSyncedAt?: number;
 }
 
 export interface UserProfile {

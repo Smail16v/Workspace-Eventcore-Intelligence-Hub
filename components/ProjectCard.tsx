@@ -15,7 +15,8 @@ import {
   Globe,
   Smartphone,
   PieChart,
-  BarChart3
+  BarChart3,
+  Sparkles
 } from 'lucide-react';
 import { Project, ViewMode } from '../types';
 
@@ -25,22 +26,51 @@ interface ProjectCardProps {
   onSelect: () => void;
   onEdit: (e: React.MouseEvent) => void;
   readOnly?: boolean;
+  isNew?: boolean;
 }
 
-const ProjectCard: React.FC<ProjectCardProps> = ({ project, viewMode, onSelect, onEdit, readOnly }) => {
+const ProjectCard: React.FC<ProjectCardProps> = ({ project, viewMode, onSelect, onEdit, readOnly, isNew }) => {
   const { metrics } = project;
+  const timestamp = project.updatedAt || project.createdAt;
+  const formattedTime = timestamp 
+    ? new Date(timestamp).toLocaleString('en-US', { weekday: 'short', hour: 'numeric', minute: '2-digit' }) 
+    : '';
 
   if (viewMode === 'list') {
     return (
-      <div onClick={onSelect} className="group flex items-center gap-4 p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl hover:border-blue-500 dark:hover:border-blue-500 hover:shadow-lg transition-all cursor-pointer">
-        <div className="w-12 h-12 bg-slate-50 dark:bg-slate-800 rounded-xl border dark:border-slate-700 flex items-center justify-center p-2 group-hover:bg-blue-50 dark:group-hover:bg-blue-900/30 transition-colors shrink-0">
+      <div onClick={onSelect} className="group flex items-center gap-4 p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl hover:border-blue-500 dark:hover:border-blue-500 hover:shadow-lg transition-all cursor-pointer relative overflow-hidden">
+        {isNew && (
+            <div className="absolute top-0 left-0 w-1 h-full bg-[#FFD000] animate-pulse"></div>
+        )}
+        
+        <div className="w-12 h-12 bg-slate-50 dark:bg-slate-800 rounded-xl border dark:border-slate-700 flex items-center justify-center p-2 group-hover:bg-blue-50 dark:group-hover:bg-blue-900/30 transition-colors shrink-0 relative">
            <img src={project.logoUrl || "https://picsum.photos/150/150"} alt="" className="max-h-full max-w-full object-contain" />
+           {isNew && (
+              <div className="absolute -top-1 -right-1 bg-[#FFD000] text-slate-900 p-0.5 rounded-full border-2 border-white dark:border-slate-900">
+                  <Sparkles className="w-2.5 h-2.5" />
+              </div>
+           )}
         </div>
         
         <div className="flex-1 min-w-0 grid grid-cols-1 md:grid-cols-12 gap-4 items-center">
            {/* Info Section */}
            <div className="md:col-span-4 min-w-0">
-             <h4 className="font-bold text-slate-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors truncate">{project.name}</h4>
+             <div className="flex items-center gap-2">
+                 <h4 className="font-bold text-slate-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors truncate">{project.name}</h4>
+                 {isNew && (
+                    <div className="flex flex-col justify-center ml-1">
+                        <div className="flex items-center gap-1 text-[#FFD000]">
+                            <Sparkles className="w-2.5 h-2.5" />
+                            <span className="text-[9px] font-bold uppercase tracking-wide">New Update</span>
+                        </div>
+                        {formattedTime && (
+                            <span className="text-[8px] font-semibold text-[#FFD000]/80 pl-4 leading-none uppercase tracking-tight">
+                                {formattedTime}
+                            </span>
+                        )}
+                    </div>
+                 )}
+             </div>
              <div className="flex items-center gap-3 mt-1 text-[10px] text-slate-500 dark:text-slate-400 font-medium">
                <span className="flex items-center gap-1 truncate"><Building className="w-3 h-3" /> {project.venue}</span>
                <span className="flex items-center gap-1 truncate"><Shield className="w-3 h-3" /> {project.promoter}</span>
@@ -92,6 +122,21 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ project, viewMode, onSelect, 
   return (
     <div onClick={onSelect} className="group bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-[28px] overflow-hidden hover:shadow-2xl hover:shadow-blue-500/10 hover:border-blue-500 dark:hover:border-blue-500 transition-all cursor-pointer flex flex-col h-full relative">
       
+      {/* Badge */}
+      {isNew && (
+        <div className="absolute top-3 left-3 z-20 flex flex-col items-start animate-in fade-in zoom-in duration-300">
+            <div className="flex items-center gap-1 text-[#FFD000] px-2.5 py-0.5">
+                <Sparkles className="w-3 h-3 text-[#FFD000]" />
+                <span className="text-[9px] font-bold uppercase tracking-wide">New Update</span>
+            </div>
+            {formattedTime && (
+                 <span className="text-[8px] font-semibold text-[#FFD000]/90 pl-7 -mt-1 uppercase tracking-tight">
+                    {formattedTime}
+                 </span>
+            )}
+        </div>
+      )}
+
       {/* Card Header Image */}
       <div className="h-40 bg-slate-50 dark:bg-slate-800 relative flex items-center justify-center p-8 group-hover:bg-blue-50/40 dark:group-hover:bg-blue-900/20 transition-colors border-b border-slate-100 dark:border-slate-800">
          <img 

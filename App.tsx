@@ -7,7 +7,9 @@ import {
   Filter,
   Loader2,
   Lock,
-  Users as UsersIcon
+  Users as UsersIcon,
+  RefreshCw,
+  BadgeInfo
 } from 'lucide-react';
 import Papa from 'papaparse';
 
@@ -29,7 +31,7 @@ import {
   subscribeToUserProfile, 
   ensureUserProfileExists, 
   uploadProjectFile,
-  deleteProjectFile,
+  deleteProjectFile, 
   uploadProjectLogo,
   deleteProject,
   onAuthStateChanged,
@@ -54,9 +56,12 @@ export default function App() {
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
-  const [syncRunning, setSyncRunning] = useState(false);
-  const [hasSyncedThisSession, setHasSyncedThisSession] = useState(false);
   
+  // Sync State
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [syncResult, setSyncResult] = useState<{ time: string; count: number } | null>(null);
+  const [lastVisit, setLastVisit] = useState<number>(0);
+
   // Modals
   const [modalState, setModalState] = useState<{ isOpen: boolean; project: Project | null }>({ isOpen: false, project: null });
   const [authModalOpen, setAuthModalOpen] = useState(true);
@@ -86,6 +91,22 @@ export default function App() {
   }, [theme]);
 
   const toggleTheme = () => setTheme(prev => prev === 'dark' ? 'light' : 'dark');
+
+  // Session Tracking: Last Visit
+  useEffect(() => {
+    const storedLastVisit = localStorage.getItem('eventcore_last_visit');
+    const now = Date.now();
+    
+    if (storedLastVisit) {
+        setLastVisit(parseInt(storedLastVisit, 10));
+    } else {
+        // If first visit, show updates from last 24h as "New"
+        setLastVisit(now - 86400000);
+    }
+    
+    // Update for next session
+    localStorage.setItem('eventcore_last_visit', now.toString());
+  }, []);
 
   // Authentication Setup
   useEffect(() => {
@@ -319,78 +340,63 @@ export default function App() {
     }
   };
 
-  // Background Qualtrics Sync
-  useEffect(() => {
-    // 1. Only run for Admins after initial project list is loaded
-    // Check loading state and sync session flag to prevent loops
-    if (!user || !userProfile || userProfile.accessLevel !== 'all' || loading || hasSyncedThisSession || syncRunning) return;
+  // Manual Qualtrics Sync (Match & Heal)
+  const handleSyncQualtrics = async () => {
+    if (isSyncing) return;
+    setIsSyncing(true);
+    let updateCount = 0;
 
-    const autoSyncQualtrics = async () => {
-        setSyncRunning(true);
-        console.log("[Auto-Sync] Checking Qualtrics for updates...");
-        
-        try {
-            // 1. Get the latest list from Qualtrics
-            const availableSurveys = await listSurveys();
+    try {
+        const availableSurveys = await listSurveys();
 
-            for (const survey of availableSurveys) {
-                // IMPROVED CHECK: Search by qualtricsSurveyId OR Name as fallback
-                // This prevents duplicates if the ID is missing in Firestore but name matches
-                const existingProject = projects.find(p => 
-                    p.qualtricsSurveyId === survey.id || 
-                    (p.name && p.name.toLowerCase() === survey.name.toLowerCase())
-                );
+        for (const survey of availableSurveys) {
+            // DUPLICATION FIX: Search by qualtricsSurveyId OR Name
+            const existingProject = projects.find(p => 
+                p.qualtricsSurveyId === survey.id || 
+                (p.name && p.name.toLowerCase().trim() === survey.name.toLowerCase().trim())
+            );
 
-                console.log(`[Auto-Sync] Processing: ${survey.name}`);
+            // 1. Fetch fresh files from Qualtrics
+            const { metadata, schemaFile, responsesFile } = await importSurveyData(survey.id, survey.name);
+            
+            // 2. Extract metrics from new responses
+            const text = await responsesFile.text();
+            const freshRows = await new Promise<any[]>((res) => {
+                Papa.parse(text, { header: true, complete: (r) => res(r.data) });
+            });
+            const freshMetrics = extractProjectMetrics(freshRows);
 
-                // 2. Fetch fresh data from Qualtrics
-                const { metadata, schemaFile, responsesFile } = await importSurveyData(survey.id, survey.name);
-                
-                // 3. Extract fresh metrics snapshot
-                const text = await responsesFile.text();
-                const freshRows = await new Promise<any[]>((res) => {
-                    Papa.parse(text, { header: true, complete: (r) => res(r.data) });
-                });
-                const freshMetrics = extractProjectMetrics(freshRows);
+            // 3. Prepare data (Heal missing qualtricsSurveyId if found by name)
+            const updatedData = {
+                ...metadata,
+                qualtricsSurveyId: survey.id,
+                metrics: freshMetrics,
+                lastSyncedAt: Date.now()
+            };
 
-                // 4. Update or Create logic
-                const finalProjectData = {
-                    ...metadata,
-                    qualtricsSurveyId: survey.id, // Ensure this is always saved/updated
-                    metrics: freshMetrics,
-                    updatedAt: Date.now()
-                };
+            // 4. Save (Pass existing ID to prevent duplication)
+            // If existingProject is found, we pass its ID inside the object, ensuring an update.
+            await handleSaveProject(
+                existingProject ? { ...existingProject, ...updatedData } : updatedData,
+                [], [], // No seeding
+                schemaFile,
+                responsesFile
+            );
 
-                if (existingProject) {
-                    console.log(`[Auto-Sync] Updating existing card: ${survey.name}`);
-                    // SILENT UPDATE: Refresh existing card's CSVs and metrics
-                    await handleSaveProject(
-                        { ...existingProject, ...finalProjectData },
-                        [], [], // No database seeding
-                        schemaFile,
-                        responsesFile
-                    );
-                } else {
-                    console.log(`[Auto-Sync] Creating new card for: ${survey.name}`);
-                    // AUTO-CREATE: New card detected on Qualtrics
-                    await handleSaveProject(
-                        finalProjectData,
-                        [], [], // No database seeding
-                        schemaFile,
-                        responsesFile
-                    );
-                }
-            }
-            setHasSyncedThisSession(true);
-        } catch (err) {
-            console.error("[Auto-Sync] Sync failed:", err);
-        } finally {
-            setSyncRunning(false);
+            updateCount += 2; // Each project updates Schema and Responses CSVs
         }
-    };
 
-    autoSyncQualtrics();
-  }, [user, userProfile, loading, projects.length]); // Dependencies ensure it runs on app start/load
+        setSyncResult({
+            time: new Date().toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }),
+            count: updateCount
+        });
+    } catch (err) {
+        console.error("Sync Error:", err);
+        alert("Failed to sync some projects. Check console.");
+    } finally {
+        setIsSyncing(false);
+    }
+  };
 
   const handleDeleteProject = async (projectId: string) => {
     if (!user) return;
@@ -424,6 +430,11 @@ export default function App() {
       (p.venue || '').toLowerCase().includes(searchTerm.toLowerCase())
     );
   }, [projects, searchTerm]);
+
+  // Calculate new updates count
+  const newUpdatesCount = useMemo(() => {
+    return projects.filter(p => (p.updatedAt || p.createdAt || 0) > lastVisit).length;
+  }, [projects, lastVisit]);
 
   const groupedProjects = useMemo<Record<string, Project[]>>(() => {
     if (groupBy === 'none') return { "All Projects": filteredProjects };
@@ -477,16 +488,39 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-3">
-            <div className="relative group">
-              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-600 transition-colors" />
-              <input 
-                type="text" 
-                placeholder="Search projects..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-9 pr-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-500 focus:border-transparent outline-none w-64 shadow-sm transition-all dark:text-white placeholder-slate-400"
-              />
-            </div>
+             {/* Search Removed from here */}
+
+            {/* Last Sync Info */}
+            {syncResult && (
+                <div className="hidden lg:flex flex-col items-end mr-2 text-[10px] font-bold text-slate-400 uppercase tracking-tight animate-in fade-in slide-in-from-top-1">
+                    <span>Last Sync: {syncResult.time}</span>
+                    <span className="text-emerald-500">{syncResult.count} Files Updated</span>
+                </div>
+            )}
+
+            {/* New Updates Notification */}
+            {newUpdatesCount > 0 && (
+                <div className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-full text-xs font-bold animate-in fade-in mr-2">
+                    <BadgeInfo className="w-4 h-4" />
+                    <span>{newUpdatesCount} New</span>
+                </div>
+            )}
+
+            {/* Sync Button - Only for Admins */}
+            {isAdmin && (
+                <button 
+                    onClick={handleSyncQualtrics}
+                    disabled={isSyncing}
+                    className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm transition-all active:scale-95 shadow-lg ${
+                        isSyncing 
+                        ? 'bg-slate-100 dark:bg-slate-800 text-slate-400 cursor-not-allowed' 
+                        : 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 shadow-emerald-500/10 border border-emerald-100 dark:border-emerald-800'
+                    }`}
+                >
+                    {isSyncing ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+                    {isSyncing ? 'Syncing...' : 'Sync Qualtrics'}
+                </button>
+            )}
             
             {/* Admin: Manage Users Button */}
             {isAdmin && (
@@ -512,7 +546,19 @@ export default function App() {
 
         {/* Controls Section */}
         <div className="flex items-center justify-between mb-8 bg-white dark:bg-slate-900 p-2 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm transition-colors">
-           <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
+           {/* Search Input Moved Here */}
+           <div className="relative group pl-2 pr-4 border-r border-slate-100 dark:border-slate-800 mr-2">
+              <Search className="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-600 transition-colors" />
+              <input 
+                type="text" 
+                placeholder="Search projects..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-9 pr-4 py-2 bg-transparent border-none text-sm outline-none w-48 md:w-64 transition-all dark:text-white placeholder-slate-400"
+              />
+           </div>
+
+           <div className="flex items-center gap-2 overflow-x-auto no-scrollbar flex-1">
               <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase flex items-center gap-2 ml-2 mr-3 tracking-widest whitespace-nowrap">
                  <Filter className="w-3 h-3" /> Group View
               </span>
@@ -529,7 +575,7 @@ export default function App() {
               </div>
            </div>
 
-           <div className="flex items-center gap-1 pl-4">
+           <div className="flex items-center gap-1 pl-4 border-l border-slate-100 dark:border-slate-800 ml-2">
              <button onClick={() => setViewMode('grid')} className={`p-2 rounded-lg transition-all ${viewMode === 'grid' ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400' : 'text-slate-400 dark:text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800'}`} title="Grid View"><LayoutGrid className="w-4 h-4" /></button>
              <button onClick={() => setViewMode('list')} className={`p-2 rounded-lg transition-all ${viewMode === 'list' ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400' : 'text-slate-400 dark:text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800'}`} title="List View"><List className="w-4 h-4" /></button>
            </div>
@@ -573,6 +619,7 @@ export default function App() {
                       onSelect={() => setActiveProject(project)}
                       onEdit={(e) => handleEditClick(e, project)}
                       readOnly={isReadOnly}
+                      isNew={(project.updatedAt || project.createdAt || 0) > lastVisit}
                     />
                   ))}
                </div>
