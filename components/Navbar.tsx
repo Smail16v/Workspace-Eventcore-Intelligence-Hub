@@ -22,7 +22,7 @@ const Navbar: React.FC<NavbarProps> = ({ user, userProfile, onAuthClick, onProfi
     <nav className="h-16 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-6 flex items-center justify-between sticky top-0 z-30 transition-colors duration-300">
       <div className="flex items-center gap-3">
         <img 
-          src="https://firebasestorage.googleapis.com/v0/b/eventcore-intelligence-hub.firebasestorage.app/o/Eventcore%20logo.png?alt=media&token=b6c93a02-f7cd-4aaf-ac78-aa6ee4a0865d" 
+          src="https://firebasestorage.googleapis.com/v0/b/eventcore-intelligence-hub.firebasestorage.app/o/Eventcore-logo.svg?alt=media&token=68dbed9c-d471-41fe-8c2a-2443ba78226e" 
           alt="Eventcore" 
           className="h-10 w-auto object-contain" 
         />
