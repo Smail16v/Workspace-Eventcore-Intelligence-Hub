@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { X, ImageIcon, Plus, Sparkles, Link as LinkIcon, Loader2, FileSpreadsheet, FileCheck, Upload, AlertCircle, CheckCircle2, ArrowRight, RefreshCw, DownloadCloud, AlertTriangle, Trash2, Eye } from 'lucide-react';
 import Papa from 'papaparse';
 import { Project, ProjectMetrics } from '../types';
-import { analyzeEventContext } from '../services/geminiService';
+import { analyzeEventContext, extractPrizeInfo } from '../services/geminiService';
 import { listSurveys, importSurveyData, QualtricsSurvey } from '../services/qualtricsService';
 import { extractProjectMetrics } from '../services/metadataService';
 
@@ -298,10 +298,18 @@ const ProjectModal: React.FC<ProjectModalProps> = ({ project, onClose, onSave, o
         let schemaData: any[] = [];
         let responsesData: any[] = [];
         let extractedMetrics: ProjectMetrics | undefined;
+        let prizeDescription = "";
+
+        // 1. Determine Source
+        const activeSource = importMode === 'qualtrics' ? 'Qualtrics Source' : 'Digivey Source';
 
         if (schemaFile) {
             setProgress({ stage: 'Parsing Schema CSV...', percent: 10 });
             schemaData = await parseCsvFile(schemaFile);
+            
+            // Extract Prize from Schema using AI
+            setProgress({ stage: 'Analyzing for Prizes...', percent: 15 });
+            prizeDescription = await extractPrizeInfo(schemaData);
         }
 
         if (responsesFile) {
@@ -310,7 +318,7 @@ const ProjectModal: React.FC<ProjectModalProps> = ({ project, onClose, onSave, o
 
             // Extract Snapshot Metrics immediately after parsing
             setProgress({ stage: 'Extracting Workspace Metrics...', percent: 25 });
-            extractedMetrics = extractProjectMetrics(responsesData);
+            extractedMetrics = extractProjectMetrics(responsesData, activeSource);
         }
         
         setProgress({ stage: 'Starting Uploads...', percent: 30 });
@@ -327,7 +335,8 @@ const ProjectModal: React.FC<ProjectModalProps> = ({ project, onClose, onSave, o
         const finalData = { 
             ...dataToSave,
             name: finalName,
-            metrics: extractedMetrics // Attach the calculated snapshots
+            metrics: extractedMetrics, // Attach the calculated snapshots
+            prizeInfo: prizeDescription
         };
 
         // Legacy composite handling if needed

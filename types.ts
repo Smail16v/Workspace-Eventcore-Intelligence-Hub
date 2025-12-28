@@ -7,6 +7,7 @@ export interface ProjectMetrics {
   surveyLength: string; // e.g. "52Questions"
   progressPercent: number;
   totalRespondents: string; // New field: "n = 1626"
+  source: string; // New field: "Qualtrics Source" or "Digivey Source"
 }
 
 export interface Project {
@@ -30,6 +31,7 @@ export interface Project {
   responsesSize?: number;
   // Snapshot Analytics
   metrics?: ProjectMetrics;
+  prizeInfo?: string; // New field for AI-extracted prize description
   // Source Linkage
   qualtricsSurveyId?: string;
   lastSyncedAt?: number;

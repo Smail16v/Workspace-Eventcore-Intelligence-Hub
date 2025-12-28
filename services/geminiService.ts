@@ -100,3 +100,35 @@ export async function analyzeEventContext(textOrUrl: string): Promise<Partial<Pr
     throw error;
   }
 }
+
+export async function extractPrizeInfo(schemaRows: any[]): Promise<string> {
+  if (!ai) return "";
+
+  // Extract all question text to provide context to Gemini
+  // Check common columns for Question Text
+  const allQuestions = schemaRows
+    .map(r => r.QText || r['Question Text'] || "")
+    .filter(t => t && t.length > 5)
+    .join("\n");
+
+  const prompt = `
+    Analyze the following list of survey questions. 
+    Find any mention of a prize, sweepstakes, gift card, or contest reward.
+    Return a very concise sentence describing the prize (e.g., "Win a $500 Amazon Gift Card").
+    If no prize is mentioned, return "No prize details found."
+    
+    Questions:
+    ${allQuestions.substring(0, 4000)} 
+  `;
+
+  try {
+    const result = await ai.models.generateContent({
+        model: 'gemini-3-flash-preview', // Good for summarization/extraction
+        contents: prompt
+    });
+    return result.text ? result.text.trim() : "";
+  } catch (e) {
+    console.error("Prize extraction failed", e);
+    return "";
+  }
+}

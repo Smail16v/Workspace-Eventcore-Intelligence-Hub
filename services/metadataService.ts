@@ -1,6 +1,6 @@
 import { ProjectMetrics } from '../types';
 
-export const extractProjectMetrics = (data: any[]): ProjectMetrics => {
+export const extractProjectMetrics = (data: any[], source: string = 'Digivey Source'): ProjectMetrics => {
   if (!data || data.length === 0) {
     return {
       onlinePercent: 0,
@@ -10,16 +10,35 @@ export const extractProjectMetrics = (data: any[]): ProjectMetrics => {
       engagement: '0Qs',
       surveyLength: '0Questions',
       progressPercent: 0,
-      totalRespondents: 'n = 0'
+      totalRespondents: 'n = 0',
+      source
     };
   }
 
   const total = data.length;
 
-  // 1. SystemID: Online vs On-site
-  // Logic: 'DWL' usually denotes Online/Link, 'ECS-' denotes On-site devices
-  const onlineCount = data.filter(r => r.SystemID === 'DWL').length;
-  const onsiteCount = data.filter(r => String(r.SystemID || '').startsWith('ECS-')).length;
+  // 1. SystemID & Status: Online vs On-site calculation
+  let onlineCount = 0;
+  let onsiteCount = 0;
+
+  data.forEach(r => {
+    const sysId = String(r.SystemID || '');
+    const status = String(r.Status || '');
+
+    if (sysId === 'DWL') {
+      // Standard Qualtrics Online code
+      onlineCount++;
+    } else if (sysId.startsWith('ECS-')) {
+      // Standard Eventcore On-site device code
+      onsiteCount++;
+    } else if (status === 'Offline') {
+      // Fallback: If SystemID is missing, "Offline" status means onsite
+      onsiteCount++;
+    } else if (status !== "") {
+      // Fallback: If SystemID is missing and status is anything else, it means online
+      onlineCount++;
+    }
+  });
 
   // 2. Timing: Date Range Formatting
   // Checks common Qualtrics date fields
@@ -96,6 +115,7 @@ export const extractProjectMetrics = (data: any[]): ProjectMetrics => {
     engagement,
     surveyLength,
     progressPercent: Math.round((finishedCount / total) * 100),
-    totalRespondents: `n = ${total.toLocaleString()}`
+    totalRespondents: `n = ${total.toLocaleString()}`,
+    source
   };
 };
