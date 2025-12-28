@@ -22,7 +22,8 @@ import {
     doc, 
     setDoc, 
     updateDoc, 
-    deleteField 
+    deleteField,
+    getDoc
 } from 'firebase/firestore';
 
 import { 
@@ -92,22 +93,6 @@ export default function App() {
 
   const toggleTheme = () => setTheme(prev => prev === 'dark' ? 'light' : 'dark');
 
-  // Session Tracking: Last Visit
-  useEffect(() => {
-    const storedLastVisit = localStorage.getItem('eventcore_last_visit');
-    const now = Date.now();
-    
-    if (storedLastVisit) {
-        setLastVisit(parseInt(storedLastVisit, 10));
-    } else {
-        // If first visit, show updates from last 24h as "New"
-        setLastVisit(now - 86400000);
-    }
-    
-    // Update for next session
-    localStorage.setItem('eventcore_last_visit', now.toString());
-  }, []);
-
   // Authentication Setup
   useEffect(() => {
     const initAuth = async () => {
@@ -122,11 +107,30 @@ export default function App() {
     };
     
     // Listen for auth state changes using modular function
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       if (currentUser && currentUser.emailVerified) {
          // User is authenticated and verified
          setUser(currentUser);
          setAuthModalOpen(false);
+         
+         // Session Tracking: Fetch OLD lastVisit, then update to NEW
+         try {
+             const userDocRef = doc(db, "users", currentUser.uid);
+             const userSnap = await getDoc(userDocRef);
+             
+             if (userSnap.exists()) {
+                 const data = userSnap.data();
+                 setLastVisit(data.lastVisit || (Date.now() - 86400000));
+                 // Update for next visit
+                 await updateDoc(userDocRef, { lastVisit: Date.now() });
+             } else {
+                 setLastVisit(Date.now() - 86400000);
+             }
+         } catch (e) {
+             console.error("Error updating session tracking:", e);
+             setLastVisit(Date.now() - 86400000);
+         }
+
          ensureUserProfileExists(currentUser);
       } else {
          // User is missing OR user exists but email is not verified
@@ -340,7 +344,7 @@ export default function App() {
     }
   };
 
-  // Manual Qualtrics Sync (Match & Heal)
+  // Manual Qualtrics Sync (Match & Heal) - SELECTIVE UPDATE LOGIC
   const handleSyncQualtrics = async () => {
     if (isSyncing) return;
     setIsSyncing(true);
@@ -350,40 +354,48 @@ export default function App() {
         const availableSurveys = await listSurveys();
 
         for (const survey of availableSurveys) {
-            // DUPLICATION FIX: Search by qualtricsSurveyId OR Name
+            // Find existing project by Qualtrics ID or Name
             const existingProject = projects.find(p => 
                 p.qualtricsSurveyId === survey.id || 
-                (p.name && p.name.toLowerCase().trim() === survey.name.toLowerCase().trim())
+                p.name?.toLowerCase().trim() === survey.name.toLowerCase().trim()
             );
 
-            // 1. Fetch fresh files from Qualtrics
-            const { metadata, schemaFile, responsesFile } = await importSurveyData(survey.id, survey.name);
-            
-            // 2. Extract metrics from new responses
+            // Fetch fresh files and extracted metrics
+            const { metadata: incomingMeta, schemaFile, responsesFile } = await importSurveyData(survey.id, survey.name);
             const text = await responsesFile.text();
             const freshRows = await new Promise<any[]>((res) => {
                 Papa.parse(text, { header: true, complete: (r) => res(r.data) });
             });
             const freshMetrics = extractProjectMetrics(freshRows);
 
-            // 3. Prepare data (Heal missing qualtricsSurveyId if found by name)
-            const updatedData = {
-                ...metadata,
-                qualtricsSurveyId: survey.id,
-                metrics: freshMetrics,
-                lastSyncedAt: Date.now()
-            };
+            if (existingProject) {
+                // SMART UPDATE: Keep existing reviewed info, only refresh files and metrics
+                const selectiveUpdate = {
+                    ...existingProject, // Preserves reviewed Promoter, Venue, Location, etc.
+                    qualtricsSurveyId: survey.id,
+                    metrics: freshMetrics,
+                    lastSyncedAt: Date.now(),
+                    updatedAt: Date.now()
+                };
 
-            // 4. Save (Pass existing ID to prevent duplication)
-            // If existingProject is found, we pass its ID inside the object, ensuring an update.
-            await handleSaveProject(
-                existingProject ? { ...existingProject, ...updatedData } : updatedData,
-                [], [], // No seeding
-                schemaFile,
-                responsesFile
-            );
-
-            updateCount += 2; // Each project updates Schema and Responses CSVs
+                await handleSaveProject(
+                    selectiveUpdate,
+                    [], [], // No seeding
+                    schemaFile,
+                    responsesFile
+                );
+            } else {
+                // NEW PROJECT: Full metadata import
+                const newProject = {
+                    ...incomingMeta,
+                    qualtricsSurveyId: survey.id,
+                    metrics: freshMetrics,
+                    createdAt: Date.now(),
+                    lastSyncedAt: Date.now()
+                };
+                await handleSaveProject(newProject, [], [], schemaFile, responsesFile);
+            }
+            updateCount += 2;
         }
 
         setSyncResult({
@@ -615,7 +627,7 @@ export default function App() {
                  <Filter className="w-3 h-3" /> Group View
               </span>
               <div className="flex gap-1">
-                 {(['none', 'year', 'promoter', 'location', 'venue'] as const).map(opt => (
+                 {(['none', 'year', 'promoter', 'country', 'venue'] as const).map(opt => (
                    <button 
                      key={opt}
                      onClick={() => setGroupBy(opt)}
@@ -671,7 +683,7 @@ export default function App() {
                       onSelect={() => setActiveProject(project)}
                       onEdit={(e) => handleEditClick(e, project)}
                       readOnly={isReadOnly}
-                      isNew={(project.updatedAt || project.createdAt || 0) > lastVisit}
+                      userLastVisit={lastVisit}
                     />
                   ))}
                </div>

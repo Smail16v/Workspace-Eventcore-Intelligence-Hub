@@ -43,10 +43,11 @@ export interface UserProfile {
   createdAt: number;
   // RBAC: 'all' = Admin, string[] = Guest with specific project access
   accessLevel: 'all' | string[];
+  lastVisit?: number; // Timestamp of user's previous session
 }
 
 export type ViewMode = 'grid' | 'list';
-export type GroupBy = 'none' | 'year' | 'promoter' | 'location' | 'venue';
+export type GroupBy = 'none' | 'year' | 'promoter' | 'country' | 'venue';
 
 // Declare globals injected by the environment
 declare global {
