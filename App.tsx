@@ -454,7 +454,7 @@ export default function App() {
     if (!term) return projects;
 
     return projects.filter(p => {
-        // Basic Metadata
+        // 1. Metadata Filter
         const metadataMatch = 
             (p.name || '').toLowerCase().includes(term) ||
             (p.venue || '').toLowerCase().includes(term) ||
@@ -462,24 +462,29 @@ export default function App() {
             (p.country || '').toLowerCase().includes(term) ||
             (p.promoter || '').toLowerCase().includes(term) ||
             (p.year || '').toLowerCase().includes(term) ||
-            (p.dates || '').toLowerCase().includes(term);
+            (p.dates || '').toLowerCase().includes(term) ||
+            (p.prizeInfo || '').toLowerCase().includes(term);
 
         if (metadataMatch) return true;
 
-        // Metrics Data (as displayed in ProjectCard)
+        // 2. Metrics Filter
         if (p.metrics) {
             const { 
                 totalRespondents, 
                 avgDuration, 
                 engagement, 
-                surveyLength 
+                surveyLength,
+                source,
+                totalDays
             } = p.metrics;
 
             return (
                 (totalRespondents || '').toLowerCase().includes(term) ||
                 (avgDuration || '').toLowerCase().includes(term) ||
                 (engagement || '').toLowerCase().includes(term) ||
-                (surveyLength || '').toLowerCase().includes(term)
+                (surveyLength || '').toLowerCase().includes(term) ||
+                (source || '').toLowerCase().includes(term) ||
+                (totalDays || '').toLowerCase().includes(term)
             );
         }
 

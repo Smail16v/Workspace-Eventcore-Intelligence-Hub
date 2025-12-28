@@ -90,7 +90,9 @@ const ProjectModal: React.FC<ProjectModalProps> = ({ project, onClose, onSave, o
     dates: '',
     year: new Date().getFullYear().toString(),
     promoter: 'Eventcore',
-    logoUrl: ''
+    logoUrl: '',
+    prizeInfo: '',
+    qualtricsSurveyId: ''
   });
 
   useEffect(() => {
@@ -113,7 +115,9 @@ const ProjectModal: React.FC<ProjectModalProps> = ({ project, onClose, onSave, o
             dates: project.dates || '',
             year: project.year || '',
             promoter: project.promoter || 'Eventcore',
-            logoUrl: project.logoUrl || ''
+            logoUrl: project.logoUrl || '',
+            prizeInfo: project.prizeInfo || '',
+            qualtricsSurveyId: project.qualtricsSurveyId || ''
         });
 
         // Sync manual source from existing project
@@ -304,7 +308,8 @@ const ProjectModal: React.FC<ProjectModalProps> = ({ project, onClose, onSave, o
         let schemaData: any[] = [];
         let responsesData: any[] = [];
         let extractedMetrics: ProjectMetrics | undefined;
-        let prizeDescription = dataToSave.prizeInfo || ""; // Keep existing if available
+        // Initialize with existing prizeInfo from state/dataToSave so it's not lost when editing other fields
+        let prizeDescription = dataToSave.prizeInfo || "";
 
         // 1. Determine Source
         const activeSource = importMode === 'qualtrics' ? 'Qualtrics Source' : (dataToSave.metrics?.source || manualSource);

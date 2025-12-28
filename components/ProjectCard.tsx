@@ -37,23 +37,24 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ project, viewMode, onSelect, 
   const isRecentSync = project.lastSyncedAt && (!userLastVisit || project.lastSyncedAt > userLastVisit);
   const isNew = project.createdAt && (!userLastVisit || project.createdAt > userLastVisit);
   
-  // Combined flag for display if either new or synced, prioritizing 'New' status if both match
-  const showBadge = isRecentSync || isNew;
+  // Combined flag for display in List View
+  const showBadgeList = isRecentSync || isNew;
+  const badgeTextList = isNew ? 'New' : 'Updated';
 
-  const syncTime = project.lastSyncedAt 
+  const updateTime = project.lastSyncedAt 
     ? new Date(project.lastSyncedAt).toLocaleString('en-US', { weekday: 'short', hour: 'numeric', minute: '2-digit' }) 
     : (project.updatedAt ? new Date(project.updatedAt).toLocaleString('en-US', { weekday: 'short', hour: 'numeric', minute: '2-digit' }) : '');
 
   if (viewMode === 'list') {
     return (
       <div onClick={onSelect} className="group flex items-center gap-4 p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl hover:border-blue-500 dark:hover:border-blue-500 hover:shadow-lg transition-all cursor-pointer relative overflow-hidden">
-        {showBadge && (
+        {showBadgeList && (
             <div className="absolute top-0 left-0 w-1 h-full bg-[#FFD000] animate-pulse"></div>
         )}
         
         <div className="w-12 h-12 bg-slate-50 dark:bg-slate-800 rounded-xl border dark:border-slate-700 flex items-center justify-center p-2 group-hover:bg-blue-50 dark:group-hover:bg-blue-900/30 transition-colors shrink-0 relative">
            <img src={project.logoUrl || "https://picsum.photos/150/150"} alt="" className="max-h-full max-w-full object-contain" />
-           {showBadge && (
+           {showBadgeList && (
               <div className="absolute -top-1 -right-1 bg-[#FFD000] text-slate-900 p-0.5 rounded-full border-2 border-white dark:border-slate-900">
                   <Sparkles className="w-2.5 h-2.5 fill-black" />
               </div>
@@ -65,10 +66,10 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ project, viewMode, onSelect, 
            <div className="md:col-span-4 min-w-0">
              <div className="flex items-center gap-2">
                  <h4 className="font-bold text-slate-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors truncate">{project.name}</h4>
-                 {showBadge && (
+                 {showBadgeList && (
                     <div className="flex items-center gap-1.5 px-3 py-1 bg-[#FFD000] text-black text-[10px] font-black uppercase rounded-lg shadow-sm ml-2">
                         <Sparkles className="w-3 h-3 fill-black" />
-                        <span>{isNew ? 'New' : 'Updated'}</span>
+                        <span>{badgeTextList}</span>
                     </div>
                  )}
              </div>
@@ -84,15 +85,15 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ project, viewMode, onSelect, 
                 <>
                   <div className="flex flex-col gap-1 min-w-[80px]">
                       <span className="flex items-center gap-1.5 font-bold text-slate-700 dark:text-slate-300"><Users className="w-3 h-3 text-blue-500" /> {metrics.totalRespondents}</span>
-                      <span className="flex items-center gap-1.5"><Clock className="w-3 h-3" /> {metrics.avgDuration}</span>
+                      <span className="flex items-center gap-1.5"><Clock className="w-3 h-3 text-blue-500" /> {metrics.avgDuration}</span>
                   </div>
                   <div className="flex flex-col gap-1 min-w-[80px]">
-                      <span className="flex items-center gap-1.5"><Activity className="w-3 h-3" /> {metrics.engagement}</span>
-                      <span className="flex items-center gap-1.5"><FileText className="w-3 h-3" /> {metrics.surveyLength}</span>
+                      <span className="flex items-center gap-1.5"><Activity className="w-3 h-3 text-blue-500" /> {metrics.engagement}</span>
+                      <span className="flex items-center gap-1.5"><FileText className="w-3 h-3 text-blue-500" /> {metrics.surveyLength}</span>
                   </div>
                   <div className="flex flex-col gap-1 min-w-[100px]">
-                      <span className="flex items-center gap-1.5"><Globe className="w-3 h-3" /> {metrics.onlinePercent}% Online</span>
-                      <span className="flex items-center gap-1.5"><Smartphone className="w-3 h-3" /> {metrics.onsitePercent}% On-site</span>
+                      <span className="flex items-center gap-1.5"><Globe className="w-3 h-3 text-blue-500" /> {metrics.onlinePercent}% Online</span>
+                      <span className="flex items-center gap-1.5"><Smartphone className="w-3 h-3 text-blue-500" /> {metrics.onsitePercent}% On-site</span>
                   </div>
                 </>
               ) : (
@@ -121,26 +122,33 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ project, viewMode, onSelect, 
 
   // GRID VIEW
   return (
-    <div onClick={onSelect} className="group bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-[28px] overflow-hidden hover:shadow-2xl transition-all cursor-pointer flex flex-col h-full relative">
+    <div onClick={onSelect} className="group bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-[28px] overflow-hidden hover:shadow-2xl hover:shadow-blue-500/10 hover:border-blue-500 dark:hover:border-blue-500 transition-all cursor-pointer flex flex-col h-full relative">
       
-      {/* Requested #FFD000 Status Tag */}
-      {showBadge && (
-         <div className="absolute top-4 left-4 z-20 flex items-center gap-1.5 px-3 py-1 bg-[#FFD000] text-black text-[10px] font-black uppercase rounded-lg shadow-xl animate-pulse">
+      {/* Status Tags */}
+      {isNew ? (
+         <div className="absolute top-4 left-4 z-20 flex items-center gap-1.5 px-3 py-1 bg-[#FFD000] text-black text-[10px] font-black uppercase rounded-lg shadow-xl border border-white/20 animate-pulse">
             <Sparkles className="w-3 h-3 fill-black" />
-            <span>{isNew ? 'New' : `Updated ${syncTime}`}</span>
+            <span>New Project</span>
          </div>
-      )}
+      ) : isRecentSync ? (
+         <div className="absolute top-4 left-4 z-20 flex items-center gap-1.5">
+            <div className="bg-[#FFD000] p-1 rounded-md shadow-sm">
+               <Sparkles className="w-3 h-3 fill-black" />
+            </div>
+            <span className="text-[10px] italic text-slate-400 dark:text-slate-500 font-medium">Updated {updateTime}</span>
+         </div>
+      ) : null}
 
-      {/* Card Header Image */}
-      <div className="h-40 bg-slate-50 dark:bg-slate-800 relative flex items-center justify-center p-8 group-hover:bg-blue-50/40 dark:group-hover:bg-blue-900/20 transition-colors border-b border-slate-100 dark:border-slate-800">
+      {/* Improved Logo Header: Ensures Logo fits entirely */}
+      <div className="h-44 bg-slate-50 dark:bg-slate-800 relative flex items-center justify-center p-6 transition-colors border-b border-slate-100 dark:border-slate-800">
          <img 
            src={project.logoUrl || "https://picsum.photos/150/150"} 
            alt={project.name} 
-           className="max-h-full max-w-full object-contain filter group-hover:scale-110 transition-transform duration-500" 
+           className="max-h-full max-w-full object-contain filter drop-shadow-sm group-hover:scale-105 transition-transform duration-500" 
          />
          {!readOnly && (
             <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity">
-                <button onClick={onEdit} className="p-2.5 bg-white dark:bg-slate-700 rounded-xl shadow-lg text-slate-400 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-white dark:hover:bg-slate-600 transition-all transform hover:scale-110 active:scale-95 border border-slate-100 dark:border-slate-600" title="Edit Hub Settings">
+                <button onClick={onEdit} className="p-2.5 bg-white dark:bg-slate-700 rounded-xl shadow-lg text-slate-400 hover:text-blue-600 transition-all border border-slate-100 dark:border-slate-600">
                     <Pencil className="w-4 h-4" />
                 </button>
             </div>
@@ -148,60 +156,57 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ project, viewMode, onSelect, 
       </div>
 
       <div className="p-6 flex flex-col flex-1 gap-4">
-         {/* Header Info: Date & Year */}
-         <div className="flex items-center justify-between">
-            <span className="text-[10px] font-bold px-3 py-1 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-lg border border-blue-100 dark:border-blue-800/50 uppercase tracking-wider">{project.dates}</span>
-            <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 px-2 py-1 rounded-lg">{project.year}</span>
-         </div>
-         
+         {/* Title */}
          <h3 className="font-bold text-xl text-slate-900 dark:text-white leading-tight group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors line-clamp-1" title={project.name}>{project.name}</h3>
          
          {metrics ? (
-           <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-3 flex flex-col gap-3 border border-slate-100 dark:border-slate-800/50">
-              {/* Row 1: Total Respondents & Date Range with Day Count */}
-              <div className="flex items-center justify-between pb-2 border-b border-slate-200 dark:border-slate-700/50">
+           <div className="bg-slate-50 dark:bg-slate-800/50 rounded-2xl p-4 flex flex-col gap-4 border border-slate-100 dark:border-slate-800/50">
+              
+              {/* Row 1: Respondents, Date Range, and Days */}
+              <div className="flex flex-col gap-2 pb-3 border-b border-slate-200 dark:border-slate-700/50">
                   <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-200">
-                     <Users className="w-3.5 h-3.5 text-blue-500" /> {metrics.totalRespondents}
+                     <Users className="w-4 h-4 text-blue-500" /> {metrics.totalRespondents}
                   </div>
-                  <div className="flex items-center gap-2 text-[10px] font-medium text-slate-500 dark:text-slate-400">
-                     <div className="flex items-center gap-1.5" title="Data Date Range">
-                        <CalendarRange className="w-3 h-3 text-blue-500" /> {metrics.dateRange}
+                  <div className="flex items-center justify-between">
+                     <div className="flex items-center gap-1.5 text-[10px] font-medium text-slate-500 dark:text-slate-400">
+                        <CalendarRange className="w-3.5 h-3.5 text-blue-500" /> {metrics.dateRange}
                      </div>
-                     <span className="text-blue-600 dark:text-blue-300 font-bold ml-1">
-                        {metrics.totalDays || '0 days'}
-                     </span>
+                     <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400">{metrics.totalDays || '0 days'}</span>
                   </div>
               </div>
 
-              {/* Primary Stats Grid */}
+              {/* Row 2: Secondary Stats */}
               <div className="grid grid-cols-3 gap-2">
-                  <div className="flex items-center gap-1.5 text-[10px] font-medium text-slate-600 dark:text-slate-400">
-                     <Clock className="w-3.5 h-3.5 text-blue-500" /> {metrics.avgDuration}
+                  <div className="flex flex-col items-center gap-1">
+                     <Clock className="w-3.5 h-3.5 text-blue-500" />
+                     <span className="text-[10px] font-medium text-slate-600 dark:text-slate-400">{metrics.avgDuration}</span>
                   </div>
-                  <div className="flex items-center gap-1.5 text-[10px] font-medium text-slate-600 dark:text-slate-400 justify-center">
-                     <Activity className="w-3.5 h-3.5 text-blue-500" /> {metrics.engagement}
+                  <div className="flex flex-col items-center gap-1 border-x border-slate-200 dark:border-slate-700/50">
+                     <Activity className="w-3.5 h-3.5 text-blue-500" />
+                     <span className="text-[10px] font-medium text-slate-600 dark:text-slate-400">{metrics.engagement}</span>
                   </div>
-                  <div className="flex items-center gap-1.5 text-[10px] font-medium text-slate-600 dark:text-slate-400 justify-end">
-                     <FileText className="w-3.5 h-3.5 text-blue-500" /> {metrics.surveyLength}
+                  <div className="flex flex-col items-center gap-1">
+                     <FileText className="w-3.5 h-3.5 text-blue-500" />
+                     <span className="text-[10px] font-medium text-slate-600 dark:text-slate-400">{metrics.surveyLength}</span>
                   </div>
               </div>
 
-              {/* Online/Onsite Bar */}
-              <div className="pt-2 border-t border-slate-200 dark:border-slate-700/50 mt-1">
-                 <div className="h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden flex">
+              {/* Row 3: Online/On-site Split */}
+              <div className="pt-2 border-t border-slate-200 dark:border-slate-700/50">
+                 <div className="flex justify-between text-[9px] font-bold uppercase text-slate-400 mb-1.5">
+                    <span className="flex items-center gap-1"><Globe className="w-2.5 h-2.5 text-blue-500" /> {metrics.onlinePercent}% Online</span>
+                    <span className="flex items-center gap-1"><Smartphone className="w-2.5 h-2.5 text-blue-500" /> {metrics.onsitePercent}% On-site</span>
+                 </div>
+                 <div className="h-1 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden flex">
                     <div className="bg-blue-500 h-full" style={{ width: `${metrics.onlinePercent}%` }}></div>
                     <div className="bg-emerald-500 h-full" style={{ width: `${metrics.onsitePercent}%` }}></div>
                  </div>
-                 <div className="flex justify-between text-[9px] font-bold uppercase tracking-wider text-slate-400 mt-1.5">
-                    <span className="flex items-center gap-1"><Globe className="w-2.5 h-2.5" /> {metrics.onlinePercent}% Online</span>
-                    <span className="flex items-center gap-1"><Smartphone className="w-2.5 h-2.5" /> {metrics.onsitePercent}% On-site</span>
-                 </div>
               </div>
 
-              {/* Prize Summary - Consistent Design */}
+              {/* Row 4: Prize (No background, blue icon) */}
               {prizeInfo && prizeInfo !== "No prize" && prizeInfo !== "No prize details found." && (
-                <div className="mt-1 flex items-start gap-2 pt-2 border-t border-slate-200 dark:border-slate-700/50">
-                  <span className="text-xs text-blue-500 shrink-0">🏆</span>
+                <div className="flex items-start gap-2 pt-2 border-t border-slate-200 dark:border-slate-700/50">
+                  <Trophy className="w-3.5 h-3.5 text-blue-500 shrink-0 mt-0.5" />
                   <p className="text-[10px] font-normal text-slate-600 dark:text-slate-400 leading-tight">
                      {prizeInfo}
                   </p>
@@ -222,7 +227,7 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ project, viewMode, onSelect, 
                  <img src="https://firebasestorage.googleapis.com/v0/b/eventcore-intelligence-hub.firebasestorage.app/o/Qualtrics%20Logo.png?alt=media&token=55316618-b3b9-4806-8d46-6d7f4a970837" 
                       alt="Qualtrics" className="h-4 w-auto opacity-70 grayscale group-hover:grayscale-0 transition-all" />
                ) : (
-                 <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">{metrics?.source || 'Digivey Source'}</span>
+                 <span className="text-[9px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500">{metrics?.source || 'Digivey Source'}</span>
                )}
             </div>
             <div className="flex items-center gap-1 text-[10px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-all transform translate-x-2 group-hover:translate-x-0">
