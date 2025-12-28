@@ -11,7 +11,8 @@ export const extractProjectMetrics = (data: any[], source: string = 'Digivey Sou
       surveyLength: '0Questions',
       progressPercent: 0,
       totalRespondents: 'n = 0',
-      source
+      source,
+      totalDays: '0 days'
     };
   }
 
@@ -40,22 +41,29 @@ export const extractProjectMetrics = (data: any[], source: string = 'Digivey Sou
     }
   });
 
-  // 2. Timing: Date Range Formatting
-  // Checks common Qualtrics date fields
-  const dates = data
+  // 2. Timing: Date Range & Unique Days calculation
+  const validDates = data
     .map(r => r.TakeTime || r.StartDate || r.RecordedDate)
     .filter(Boolean)
     .map(d => new Date(d))
-    .filter(d => !isNaN(d.getTime()))
-    .sort((a, b) => a.getTime() - b.getTime());
+    .filter(d => !isNaN(d.getTime()));
 
   let dateRangeStr = "-";
-  if (dates.length > 0) {
+  let daysCountStr = "0 days";
+
+  if (validDates.length > 0) {
+    // Sort dates to find range
+    const sortedDates = [...validDates].sort((a, b) => a.getTime() - b.getTime());
     const fmt = (d: Date) => d.toLocaleString('en-US', { 
         month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true 
     });
-    // If start and end are same day, simplify? For now, standard range.
-    dateRangeStr = `${fmt(dates[0])} - ${fmt(dates[dates.length - 1])}`;
+    dateRangeStr = `${fmt(sortedDates[0])} - ${fmt(sortedDates[sortedDates.length - 1])}`;
+
+    // Calculate unique calendar days
+    const uniqueDays = new Set(
+      validDates.map(d => d.toISOString().split('T')[0]) // Get YYYY-MM-DD format
+    );
+    daysCountStr = `${uniqueDays.size} days`;
   }
 
   // 3. Duration: Average seconds to "Xm Ys"
@@ -116,6 +124,7 @@ export const extractProjectMetrics = (data: any[], source: string = 'Digivey Sou
     surveyLength,
     progressPercent: Math.round((finishedCount / total) * 100),
     totalRespondents: `n = ${total.toLocaleString()}`,
-    source
+    source,
+    totalDays: daysCountStr
   };
 };

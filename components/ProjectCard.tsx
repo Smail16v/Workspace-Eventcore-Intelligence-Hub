@@ -158,24 +158,30 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ project, viewMode, onSelect, 
          
          {metrics ? (
            <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-3 flex flex-col gap-3 border border-slate-100 dark:border-slate-800/50">
-              {/* 1. Full Date Range Display */}
-              <div className="flex items-center gap-2 pb-2 border-b border-slate-200 dark:border-slate-700/50">
-                  <CalendarRange className="w-3.5 h-3.5 text-blue-500" />
-                  <span className="text-[10px] font-bold text-slate-700 dark:text-slate-200">{metrics.dateRange}</span>
+              {/* Row 1: Total Respondents & Date Range with Day Count */}
+              <div className="flex items-center justify-between pb-2 border-b border-slate-200 dark:border-slate-700/50">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-200">
+                     <Users className="w-3.5 h-3.5 text-blue-500" /> {metrics.totalRespondents}
+                  </div>
+                  <div className="flex items-center gap-3 text-[10px] font-medium text-slate-500 dark:text-slate-400">
+                     <div className="flex items-center gap-1.5" title="Data Date Range">
+                        <CalendarRange className="w-3 h-3 text-blue-500" /> {metrics.dateRange}
+                     </div>
+                     <span className="px-2 py-0.5 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300 rounded-md font-bold border border-blue-100 dark:border-blue-800/50">
+                        {metrics.totalDays || '0 days'}
+                     </span>
+                  </div>
               </div>
 
               {/* Primary Stats Grid */}
-              <div className="grid grid-cols-2 gap-3">
-                  <div className="flex items-center gap-2 text-[10px] font-medium text-slate-600 dark:text-slate-400">
-                     <Users className="w-3.5 h-3.5 text-blue-500" /> {metrics.totalRespondents}
-                  </div>
-                  <div className="flex items-center gap-2 text-[10px] font-medium text-slate-600 dark:text-slate-400">
+              <div className="grid grid-cols-3 gap-2">
+                  <div className="flex items-center gap-1.5 text-[10px] font-medium text-slate-600 dark:text-slate-400">
                      <Clock className="w-3.5 h-3.5 text-blue-500" /> {metrics.avgDuration}
                   </div>
-                  <div className="flex items-center gap-2 text-[10px] font-medium text-slate-600 dark:text-slate-400">
+                  <div className="flex items-center gap-1.5 text-[10px] font-medium text-slate-600 dark:text-slate-400 justify-center">
                      <Activity className="w-3.5 h-3.5 text-blue-500" /> {metrics.engagement}
                   </div>
-                  <div className="flex items-center gap-2 text-[10px] font-medium text-slate-600 dark:text-slate-400">
+                  <div className="flex items-center gap-1.5 text-[10px] font-medium text-slate-600 dark:text-slate-400 justify-end">
                      <FileText className="w-3.5 h-3.5 text-blue-500" /> {metrics.surveyLength}
                   </div>
               </div>
@@ -192,12 +198,12 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ project, viewMode, onSelect, 
                  </div>
               </div>
 
-              {/* PRIZE SUMMARY IN REGULAR TEXT */}
-              {project.prizeInfo && project.prizeInfo !== "No prize" && (
+              {/* Prize Summary - Consistent Design */}
+              {prizeInfo && prizeInfo !== "No prize" && prizeInfo !== "No prize details found." && (
                 <div className="mt-1 flex items-start gap-2 pt-2 border-t border-slate-200 dark:border-slate-700/50">
-                  <Trophy className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+                  <span className="text-xs text-blue-500 shrink-0">🏆</span>
                   <p className="text-[10px] font-normal text-slate-600 dark:text-slate-400 leading-tight">
-                     {project.prizeInfo}
+                     {prizeInfo}
                   </p>
                 </div>
               )}

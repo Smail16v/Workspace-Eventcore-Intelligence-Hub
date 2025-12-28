@@ -104,19 +104,19 @@ export async function analyzeEventContext(textOrUrl: string): Promise<Partial<Pr
 export async function extractPrizeInfo(schemaRows: any[]): Promise<string> {
   if (!ai || !schemaRows.length) return "";
 
-  // Target the QText column specifically as seen in your CSV
+  // Scan up to 10,000 characters to catch prizes at the bottom of long CSVs
   const textBlob = schemaRows
     .map(r => r.QText || r['Question Text'] || "")
-    .filter(t => t.length > 5)
+    .filter(t => t && t.length > 5)
     .join("\n");
 
   const prompt = `
-    Analyze these survey questions. Find the prize, reward, or giveaway.
-    CSV Data: ${textBlob.substring(0, 3000)}
+    Analyze these survey questions to find a prize, sweepstakes reward, or giveaway.
+    Focus on keywords like 'win', 'drawing', 'package', or 'gift'.
+    Data: ${textBlob.substring(0, 10000)} 
     
-    Task: Return ONLY the prize name (e.g., "$500 Cash"). 
-    If no specific prize is found, return "No prize". 
-    Strict Rule: Do not use full sentences. Maximum 5 words.
+    Task: Return ONLY the prize name (e.g., "2026 U.S. Open Package"). 
+    Rules: Max 5 words. No sentences. If nothing found, return "No prize".
   `;
 
   try {
@@ -124,7 +124,7 @@ export async function extractPrizeInfo(schemaRows: any[]): Promise<string> {
         model: 'gemini-3-flash-preview', 
         contents: prompt
     });
-    return result.text ? result.text.trim().replace(/^"|"$/g, '').replace(/[.]/g, '') : "No prize";
+    return result.text ? result.text.trim().replace(/[".]/g, '') : "No prize";
   } catch (e) {
     console.error("Prize extraction failed", e);
     return "No prize";

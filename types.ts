@@ -8,6 +8,7 @@ export interface ProjectMetrics {
   progressPercent: number;
   totalRespondents: string; // New field: "n = 1626"
   source: string; // New field: "Qualtrics Source" or "Digivey Source"
+  totalDays: string; // New field for "X days"
 }
 
 export interface Project {
