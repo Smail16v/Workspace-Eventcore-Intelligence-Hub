@@ -304,17 +304,17 @@ const ProjectModal: React.FC<ProjectModalProps> = ({ project, onClose, onSave, o
         let schemaData: any[] = [];
         let responsesData: any[] = [];
         let extractedMetrics: ProjectMetrics | undefined;
-        let prizeDescription = "";
+        let prizeDescription = dataToSave.prizeInfo || ""; // Keep existing if available
 
         // 1. Determine Source
-        const activeSource = importMode === 'qualtrics' ? 'Qualtrics Source' : manualSource;
+        const activeSource = importMode === 'qualtrics' ? 'Qualtrics Source' : (dataToSave.metrics?.source || manualSource);
 
         if (schemaFile) {
             setProgress({ stage: 'Parsing Schema CSV...', percent: 10 });
             schemaData = await parseCsvFile(schemaFile);
             
-            // Extract Prize from Schema using AI
-            setProgress({ stage: 'Analyzing for Prizes...', percent: 15 });
+            // Extract Prize from Schema using AI for manual uploads
+            setProgress({ stage: 'Extracting Prize Details...', percent: 15 });
             prizeDescription = await extractPrizeInfo(schemaData);
         }
 
@@ -348,7 +348,8 @@ const ProjectModal: React.FC<ProjectModalProps> = ({ project, onClose, onSave, o
             ...dataToSave,
             name: finalName,
             metrics: extractedMetrics, // Attach the calculated snapshots
-            prizeInfo: prizeDescription
+            prizeInfo: prizeDescription,
+            updatedAt: Date.now()
         };
 
         // Legacy composite handling if needed

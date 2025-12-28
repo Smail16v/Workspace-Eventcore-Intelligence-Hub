@@ -121,10 +121,11 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ project, viewMode, onSelect, 
 
   // GRID VIEW
   return (
-    <div onClick={onSelect} className="group bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-[28px] overflow-hidden hover:shadow-2xl hover:shadow-blue-500/10 hover:border-blue-500 dark:hover:border-blue-500 transition-all cursor-pointer flex flex-col h-full relative">
+    <div onClick={onSelect} className="group bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-[28px] overflow-hidden hover:shadow-2xl transition-all cursor-pointer flex flex-col h-full relative">
       
+      {/* Requested #FFD000 Status Tag */}
       {showBadge && (
-         <div className="absolute top-4 left-4 z-20 flex items-center gap-1.5 px-3 py-1 bg-[#FFD000] text-black text-[10px] font-black uppercase rounded-lg shadow-xl border border-white/20 animate-pulse">
+         <div className="absolute top-4 left-4 z-20 flex items-center gap-1.5 px-3 py-1 bg-[#FFD000] text-black text-[10px] font-black uppercase rounded-lg shadow-xl animate-pulse">
             <Sparkles className="w-3 h-3 fill-black" />
             <span>{isNew ? 'New' : `Updated ${syncTime}`}</span>
          </div>
@@ -147,11 +148,9 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ project, viewMode, onSelect, 
       </div>
 
       <div className="p-6 flex flex-col flex-1 gap-4">
-         {/* Top Metadata: Date & Year */}
+         {/* Header Info: Date & Year */}
          <div className="flex items-center justify-between">
-            <span className="text-[10px] font-bold px-3 py-1 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-lg border border-blue-100 dark:border-blue-800/50 uppercase tracking-wider">
-               {project.dates}
-            </span>
+            <span className="text-[10px] font-bold px-3 py-1 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-lg border border-blue-100 dark:border-blue-800/50 uppercase tracking-wider">{project.dates}</span>
             <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 px-2 py-1 rounded-lg">{project.year}</span>
          </div>
          
@@ -159,21 +158,29 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ project, viewMode, onSelect, 
          
          {metrics ? (
            <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-3 flex flex-col gap-3 border border-slate-100 dark:border-slate-800/50">
-              {/* Row 1: Date Range */}
+              {/* 1. Full Date Range Display */}
               <div className="flex items-center gap-2 pb-2 border-b border-slate-200 dark:border-slate-700/50">
                   <CalendarRange className="w-3.5 h-3.5 text-blue-500" />
                   <span className="text-[10px] font-bold text-slate-700 dark:text-slate-200">{metrics.dateRange}</span>
               </div>
 
-              {/* Row 2: Grid Stats */}
+              {/* Primary Stats Grid */}
               <div className="grid grid-cols-2 gap-3">
-                  <div className="flex items-center gap-2 text-[10px] font-bold text-slate-700 dark:text-slate-200"><Users className="w-3 h-3 text-blue-500" /> {metrics.totalRespondents}</div>
-                  <div className="flex items-center gap-2 text-[10px] font-medium text-slate-600 dark:text-slate-400"><Clock className="w-3 h-3 text-slate-400" /> {metrics.avgDuration}</div>
-                  <div className="flex items-center gap-2 text-[10px] font-medium text-slate-600 dark:text-slate-400"><Activity className="w-3 h-3 text-slate-400" /> {metrics.engagement}</div>
-                  <div className="flex items-center gap-2 text-[10px] font-medium text-slate-600 dark:text-slate-400"><FileText className="w-3 h-3 text-slate-400" /> {metrics.surveyLength}</div>
+                  <div className="flex items-center gap-2 text-[10px] font-medium text-slate-600 dark:text-slate-400">
+                     <Users className="w-3.5 h-3.5 text-blue-500" /> {metrics.totalRespondents}
+                  </div>
+                  <div className="flex items-center gap-2 text-[10px] font-medium text-slate-600 dark:text-slate-400">
+                     <Clock className="w-3.5 h-3.5 text-blue-500" /> {metrics.avgDuration}
+                  </div>
+                  <div className="flex items-center gap-2 text-[10px] font-medium text-slate-600 dark:text-slate-400">
+                     <Activity className="w-3.5 h-3.5 text-blue-500" /> {metrics.engagement}
+                  </div>
+                  <div className="flex items-center gap-2 text-[10px] font-medium text-slate-600 dark:text-slate-400">
+                     <FileText className="w-3.5 h-3.5 text-blue-500" /> {metrics.surveyLength}
+                  </div>
               </div>
 
-              {/* Row 3: Online/Onsite Split Bar */}
+              {/* Online/Onsite Bar */}
               <div className="pt-2 border-t border-slate-200 dark:border-slate-700/50 mt-1">
                  <div className="h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden flex">
                     <div className="bg-blue-500 h-full" style={{ width: `${metrics.onlinePercent}%` }}></div>
@@ -184,15 +191,15 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ project, viewMode, onSelect, 
                     <span className="flex items-center gap-1"><Smartphone className="w-2.5 h-2.5" /> {metrics.onsitePercent}% On-site</span>
                  </div>
               </div>
-              
-              {/* Prize Summary Row */}
-              {prizeInfo && prizeInfo !== "No prize details found." && (
-                  <div className="mt-1 p-2 bg-amber-50/50 dark:bg-amber-900/20 border border-amber-100 dark:border-amber-800/50 rounded-lg flex items-start gap-2 animate-in fade-in slide-in-from-bottom-1">
-                     <Trophy className="w-3.5 h-3.5 text-amber-500 shrink-0 mt-0.5" />
-                     <p className="text-[10px] font-bold text-amber-700 dark:text-amber-400 leading-tight italic">
-                        {prizeInfo}
-                     </p>
-                  </div>
+
+              {/* PRIZE SUMMARY IN REGULAR TEXT */}
+              {project.prizeInfo && project.prizeInfo !== "No prize" && (
+                <div className="mt-1 flex items-start gap-2 pt-2 border-t border-slate-200 dark:border-slate-700/50">
+                  <Trophy className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+                  <p className="text-[10px] font-normal text-slate-600 dark:text-slate-400 leading-tight">
+                     {project.prizeInfo}
+                  </p>
+                </div>
               )}
            </div>
          ) : (
@@ -202,7 +209,7 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ project, viewMode, onSelect, 
            </div>
          )}
 
-         {/* Footer - Source Branding */}
+         {/* SOURCE FOOTER WITH LOGO */}
          <div className="mt-auto pt-4 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
             <div className="flex items-center gap-2">
                {metrics?.source === 'Qualtrics Source' ? (

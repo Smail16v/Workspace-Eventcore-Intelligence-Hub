@@ -41,6 +41,7 @@ import {
 } from './services/firebase';
 import { listSurveys, importSurveyData } from './services/qualtricsService';
 import { extractProjectMetrics } from './services/metadataService';
+import { extractPrizeInfo } from './services/geminiService';
 import { Project, ViewMode, GroupBy, UserProfile } from './types';
 
 import Navbar from './components/Navbar';
@@ -362,6 +363,15 @@ export default function App() {
 
             // Fetch fresh files and extracted metrics
             const { metadata: incomingMeta, schemaFile, responsesFile } = await importSurveyData(survey.id, survey.name);
+            
+            // 1. Re-parse fresh schema for the concise prize
+            const schemaText = await schemaFile.text();
+            const schemaRows = await new Promise<any[]>((res) => {
+                Papa.parse(schemaText, { header: true, complete: (r) => res(r.data) });
+            });
+            const concisePrize = await extractPrizeInfo(schemaRows);
+            
+            // 2. Process responses
             const text = await responsesFile.text();
             const freshRows = await new Promise<any[]>((res) => {
                 Papa.parse(text, { header: true, complete: (r) => res(r.data) });
@@ -375,6 +385,7 @@ export default function App() {
                     ...existingProject, // Preserves reviewed Promoter, Venue, Location, etc.
                     qualtricsSurveyId: survey.id,
                     metrics: freshMetrics,
+                    prizeInfo: concisePrize, // Updates extracted prize to new concise format
                     lastSyncedAt: Date.now(),
                     updatedAt: Date.now()
                 };
@@ -391,6 +402,7 @@ export default function App() {
                     ...incomingMeta,
                     qualtricsSurveyId: survey.id,
                     metrics: freshMetrics,
+                    prizeInfo: concisePrize,
                     createdAt: Date.now(),
                     lastSyncedAt: Date.now()
                 };

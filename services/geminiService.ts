@@ -102,33 +102,31 @@ export async function analyzeEventContext(textOrUrl: string): Promise<Partial<Pr
 }
 
 export async function extractPrizeInfo(schemaRows: any[]): Promise<string> {
-  if (!ai) return "";
+  if (!ai || !schemaRows.length) return "";
 
-  // Extract all question text to provide context to Gemini
-  // Check common columns for Question Text
-  const allQuestions = schemaRows
+  // Target the QText column specifically as seen in your CSV
+  const textBlob = schemaRows
     .map(r => r.QText || r['Question Text'] || "")
-    .filter(t => t && t.length > 5)
+    .filter(t => t.length > 5)
     .join("\n");
 
   const prompt = `
-    Analyze the following list of survey questions. 
-    Find any mention of a prize, sweepstakes, gift card, or contest reward.
-    Return a very concise sentence describing the prize (e.g., "Win a $500 Amazon Gift Card").
-    If no prize is mentioned, return "No prize details found."
+    Analyze these survey questions. Find the prize, reward, or giveaway.
+    CSV Data: ${textBlob.substring(0, 3000)}
     
-    Questions:
-    ${allQuestions.substring(0, 4000)} 
+    Task: Return ONLY the prize name (e.g., "$500 Cash"). 
+    If no specific prize is found, return "No prize". 
+    Strict Rule: Do not use full sentences. Maximum 5 words.
   `;
 
   try {
     const result = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview', // Good for summarization/extraction
+        model: 'gemini-3-flash-preview', 
         contents: prompt
     });
-    return result.text ? result.text.trim() : "";
+    return result.text ? result.text.trim().replace(/^"|"$/g, '').replace(/[.]/g, '') : "No prize";
   } catch (e) {
     console.error("Prize extraction failed", e);
-    return "";
+    return "No prize";
   }
 }
