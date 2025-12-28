@@ -41,48 +41,47 @@ export const extractProjectMetrics = (data: any[], source: string = 'Digivey Sou
     }
   });
 
-  // 2. Timing: Date Range & Unique Days calculation
-  const validDates = data
-    .map(r => r.TakeTime || r.StartDate || r.RecordedDate)
-    .filter(Boolean)
-    .map(d => new Date(d))
-    .filter(d => !isNaN(d.getTime()));
+  // 2. Timing: Pre-calculate Active Days (Threshold >= 10 responses)
+  const responseDates = data
+    .map(r => ({ date: new Date(r.TakeTime || r.StartDate || r.RecordedDate), record: r }))
+    .filter(item => !isNaN(item.date.getTime()));
 
+  const dayCounts: Record<string, number> = {};
+  responseDates.forEach(item => {
+    const dayKey = item.date.toISOString().split('T')[0];
+    dayCounts[dayKey] = (dayCounts[dayKey] || 0) + 1;
+  });
+
+  const activeDayKeys = new Set(Object.keys(dayCounts).filter(day => dayCounts[day] >= 10));
+  
+  // 3. Date Range Label (uses all valid records for full context)
   let dateRangeStr = "-";
-  let daysCountStr = "0 days";
-
-  if (validDates.length > 0) {
-    // Sort dates to find range
-    const sortedDates = [...validDates].sort((a, b) => a.getTime() - b.getTime());
+  if (responseDates.length > 0) {
+    const sorted = [...responseDates].sort((a, b) => a.date.getTime() - b.date.getTime());
     const fmt = (d: Date) => d.toLocaleString('en-US', { 
         month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true 
     });
-    dateRangeStr = `${fmt(sortedDates[0])} - ${fmt(sortedDates[sortedDates.length - 1])}`;
-
-    // Calculate unique calendar days
-    const uniqueDays = new Set(
-      validDates.map(d => d.toISOString().split('T')[0]) // Get YYYY-MM-DD format
-    );
-    daysCountStr = `${uniqueDays.size} days`;
+    dateRangeStr = `${fmt(sorted[0].date)} - ${fmt(sorted[sorted.length - 1].date)}`;
   }
 
-  // 3. Duration: Average seconds to "Xm Ys"
+  // 4. Duration: Average seconds (Filtered by active dates only)
   let totalSeconds = 0;
   let durationCount = 0;
-  data.forEach(r => {
-    // Try standard Duration column or verbose label
-    const val = r.Duration || r['Duration (in seconds)'];
-    const d = parseFloat(val);
-    if (!isNaN(d)) { 
-        totalSeconds += d; 
-        durationCount++; 
+  responseDates.forEach(item => {
+    const dayKey = item.date.toISOString().split('T')[0];
+    if (activeDayKeys.has(dayKey)) {
+        const val = item.record.Duration || item.record['Duration (in seconds)'];
+        const d = parseFloat(val);
+        if (!isNaN(d)) { 
+            totalSeconds += d; 
+            durationCount++; 
+        }
     }
   });
   const avgSec = durationCount ? totalSeconds / durationCount : 0;
   const avgDuration = `${Math.floor(avgSec / 60)}m ${Math.round(avgSec % 60)}s`;
 
-  // 4. Engagement: ActualAnswers or count Qs
-  // ActualAnswers is a specific metadata field in some exports. If missing, heuristics apply.
+  // 5. Engagement: ActualAnswers or count Qs
   let totalAnswers = 0;
   data.forEach(r => {
     if (r.ActualAnswers) {
@@ -95,7 +94,7 @@ export const extractProjectMetrics = (data: any[], source: string = 'Digivey Sou
   });
   const engagement = `${(totalAnswers / total).toFixed(1)}Qs`;
 
-  // 5. Survey Length: TotalQuestions or Max Q ID
+  // 6. Survey Length: TotalQuestions or Max Q ID
   let maxQ = 0;
   if (data[0] && data[0].TotalQuestions) {
       maxQ = parseInt(data[0].TotalQuestions);
@@ -108,7 +107,7 @@ export const extractProjectMetrics = (data: any[], source: string = 'Digivey Sou
   }
   const surveyLength = `${maxQ}Questions`;
 
-  // 6. Progress: Finished or Termination
+  // 7. Progress: Finished or Termination
   const finishedCount = data.filter(r => 
     String(r.Finished).toLowerCase() === 'true' || 
     r.Finished === true || 
@@ -125,6 +124,6 @@ export const extractProjectMetrics = (data: any[], source: string = 'Digivey Sou
     progressPercent: Math.round((finishedCount / total) * 100),
     totalRespondents: `n = ${total.toLocaleString()}`,
     source,
-    totalDays: daysCountStr
+    totalDays: `${activeDayKeys.size} days`
   };
 };
