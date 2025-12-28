@@ -9,6 +9,7 @@ import {
   Lock,
   Users as UsersIcon
 } from 'lucide-react';
+import Papa from 'papaparse';
 
 import { 
     collection, 
@@ -35,6 +36,8 @@ import {
   signInWithCustomToken,
   User 
 } from './services/firebase';
+import { listSurveys, importSurveyData } from './services/qualtricsService';
+import { extractProjectMetrics } from './services/metadataService';
 import { Project, ViewMode, GroupBy, UserProfile } from './types';
 
 import Navbar from './components/Navbar';
@@ -51,6 +54,7 @@ export default function App() {
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
+  const [syncRunning, setSyncRunning] = useState(false);
   
   // Modals
   const [modalState, setModalState] = useState<{ isOpen: boolean; project: Project | null }>({ isOpen: false, project: null });
@@ -198,26 +202,6 @@ export default function App() {
     return () => unsubscribeData();
   }, [user, userProfile]);
 
-  // Filtering & Grouping
-  const filteredProjects = useMemo(() => {
-    return projects.filter(p => 
-      (p.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (p.venue || '').toLowerCase().includes(searchTerm.toLowerCase())
-    );
-  }, [projects, searchTerm]);
-
-  const groupedProjects = useMemo<Record<string, Project[]>>(() => {
-    if (groupBy === 'none') return { "All Projects": filteredProjects };
-    
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    return filteredProjects.reduce((acc, p: any) => {
-      const key = (p[groupBy] as string) || 'Uncategorized';
-      if (!acc[key]) acc[key] = [];
-      acc[key].push(p);
-      return acc;
-    }, {} as Record<string, Project[]>);
-  }, [filteredProjects, groupBy]);
-
   // Actions
   const handleSaveProject = async (
     data: Partial<Project>, 
@@ -245,7 +229,8 @@ export default function App() {
     );
 
     try {
-      let projectId = modalState.project?.id;
+      // Logic update: ID can come from the data itself (update existing) or modal state (edit existing)
+      let projectId = data.id || modalState.project?.id;
       let isNew = false;
       
       // If creating new project, generate ID immediately so we can use it for Storage upload
@@ -332,6 +317,73 @@ export default function App() {
     }
   };
 
+  // Background Qualtrics Sync
+  useEffect(() => {
+    // Only run for logged-in Admins once projects are loaded from Firestore
+    // Using projects.length to trigger on load, but guarding against loops with syncRunning
+    if (!user || !userProfile || userProfile.accessLevel !== 'all' || projects.length === 0 || syncRunning) return;
+
+    const autoSyncQualtrics = async () => {
+        setSyncRunning(true);
+        console.log("[Auto-Sync] Checking Qualtrics for updates...");
+        
+        try {
+            // 1. Get the latest list from Qualtrics
+            const availableSurveys = await listSurveys();
+
+            for (const survey of availableSurveys) {
+                // Check if project card already exists for this survey ID
+                const existingProject = projects.find(p => p.qualtricsSurveyId === survey.id);
+
+                console.log(`[Auto-Sync] Processing: ${survey.name}`);
+
+                // 2. Fetch fresh data from Qualtrics
+                const { metadata, schemaFile, responsesFile } = await importSurveyData(survey.id, survey.name);
+                
+                // 3. Extract fresh metrics snapshot
+                const text = await responsesFile.text();
+                const freshRows = await new Promise<any[]>((res) => {
+                    Papa.parse(text, { header: true, complete: (r) => res(r.data) });
+                });
+                const freshMetrics = extractProjectMetrics(freshRows);
+
+                // 4. Update or Create logic
+                const finalProjectData = {
+                    ...metadata,
+                    qualtricsSurveyId: survey.id,
+                    metrics: freshMetrics,
+                    updatedAt: Date.now()
+                };
+
+                if (existingProject) {
+                    // SILENT UPDATE: Refresh existing card's CSVs and metrics
+                    await handleSaveProject(
+                        { ...existingProject, ...finalProjectData },
+                        [], [], // No database seeding
+                        schemaFile,
+                        responsesFile
+                    );
+                } else {
+                    // AUTO-CREATE: New card detected on Qualtrics
+                    console.log(`[Auto-Sync] Creating new card for ${survey.name}`);
+                    await handleSaveProject(
+                        finalProjectData,
+                        [], [], // No database seeding
+                        schemaFile,
+                        responsesFile
+                    );
+                }
+            }
+        } catch (err) {
+            console.error("[Auto-Sync] Failed:", err);
+        } finally {
+            setSyncRunning(false);
+        }
+    };
+
+    autoSyncQualtrics();
+  }, [user, userProfile, projects.length]); // Dependencies ensure it runs on app start/load
+
   const handleDeleteProject = async (projectId: string) => {
     if (!user) return;
     try {
@@ -356,6 +408,26 @@ export default function App() {
   // RBAC Checks
   const isAdmin = userProfile?.accessLevel === 'all';
   const isReadOnly = !isAdmin;
+
+  // Filtering & Grouping
+  const filteredProjects = useMemo(() => {
+    return projects.filter(p => 
+      (p.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (p.venue || '').toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  }, [projects, searchTerm]);
+
+  const groupedProjects = useMemo<Record<string, Project[]>>(() => {
+    if (groupBy === 'none') return { "All Projects": filteredProjects };
+    
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return filteredProjects.reduce((acc, p: any) => {
+      const key = (p[groupBy] as string) || 'Uncategorized';
+      if (!acc[key]) acc[key] = [];
+      acc[key].push(p);
+      return acc;
+    }, {} as Record<string, Project[]>);
+  }, [filteredProjects, groupBy]);
 
   // If loading and we have no user, we might be initializing auth. 
   // But if auth is initialized and we have no user, the modal should be open (handled in render).

@@ -30,6 +30,8 @@ export interface Project {
   responsesSize?: number;
   // Snapshot Analytics
   metrics?: ProjectMetrics;
+  // Source Linkage
+  qualtricsSurveyId?: string;
 }
 
 export interface UserProfile {

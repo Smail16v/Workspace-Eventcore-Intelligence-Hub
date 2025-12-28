@@ -88,11 +88,6 @@ export async function importSurveyData(surveyId: string, surveyName: string): Pr
     
     const csvContent = await zip.files[csvFilename].async("string");
     
-    // Clean up Qualtrics Metadata rows (Top 3 lines usually) if needed, 
-    // but here we just pass the raw content. The App logic handles cleaning later if needed.
-    // However, the provided script had a cleanResponses() function. 
-    // For the file artifact, we will save it raw.
-    
     const responsesFile = new File([csvContent], `RawData_${surveyName}.csv`, { type: 'text/csv' });
 
     // 5. Construct Metadata
@@ -101,6 +96,7 @@ export async function importSurveyData(surveyId: string, surveyName: string): Pr
     return {
         metadata: {
             name: surveyName,
+            qualtricsSurveyId: surveyId,
             year: year,
             promoter: 'Qualtrics Source',
             dates: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),

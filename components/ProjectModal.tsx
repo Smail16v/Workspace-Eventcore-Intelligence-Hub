@@ -145,8 +145,12 @@ const ProjectModal: React.FC<ProjectModalProps> = ({ project, onClose, onSave, o
       try {
           const { metadata, schemaFile, responsesFile } = await importSurveyData(survey.id, survey.name);
           
-          // Construct the final data object
-          const finalData = { ...formData, ...metadata };
+          // Construct the final data object, ensuring ID is set
+          const finalData = { 
+              ...formData, 
+              ...metadata,
+              qualtricsSurveyId: survey.id 
+          };
           
           // Update local state (for visual completeness if errors occur later)
           setFormData(finalData);
