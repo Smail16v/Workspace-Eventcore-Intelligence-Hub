@@ -54,12 +54,18 @@ export const extractProjectMetrics = (data: any[], source: string = 'Digivey Sou
 
   const activeDayKeys = new Set(Object.keys(dayCounts).filter(day => dayCounts[day] >= 10));
   
-  // 3. Date Range Label (uses all valid records for full context)
+  // 3. Date Range Label (UPDATED: Only uses records from active tournament days)
+  const activeRecords = responseDates.filter(item => {
+    const dayKey = item.date.toISOString().split('T')[0];
+    return activeDayKeys.has(dayKey);
+  });
+
   let dateRangeStr = "-";
-  if (responseDates.length > 0) {
-    const sorted = [...responseDates].sort((a, b) => a.date.getTime() - b.date.getTime());
+  if (activeRecords.length > 0) {
+    // Sort ONLY the active records to find the start and end of the real event
+    const sorted = [...activeRecords].sort((a, b) => a.date.getTime() - b.date.getTime());
     const fmt = (d: Date) => d.toLocaleString('en-US', { 
-        month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true 
+      month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true 
     });
     dateRangeStr = `${fmt(sorted[0].date)} - ${fmt(sorted[sorted.length - 1].date)}`;
   }

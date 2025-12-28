@@ -163,11 +163,11 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ project, viewMode, onSelect, 
                   <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-200">
                      <Users className="w-3.5 h-3.5 text-blue-500" /> {metrics.totalRespondents}
                   </div>
-                  <div className="flex items-center gap-3 text-[10px] font-medium text-slate-500 dark:text-slate-400">
+                  <div className="flex items-center gap-2 text-[10px] font-medium text-slate-500 dark:text-slate-400">
                      <div className="flex items-center gap-1.5" title="Data Date Range">
                         <CalendarRange className="w-3 h-3 text-blue-500" /> {metrics.dateRange}
                      </div>
-                     <span className="px-2 py-0.5 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300 rounded-md font-bold border border-blue-100 dark:border-blue-800/50">
+                     <span className="text-blue-600 dark:text-blue-300 font-bold ml-1">
                         {metrics.totalDays || '0 days'}
                      </span>
                   </div>
