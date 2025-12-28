@@ -366,7 +366,8 @@ export default function App() {
             const freshRows = await new Promise<any[]>((res) => {
                 Papa.parse(text, { header: true, complete: (r) => res(r.data) });
             });
-            const freshMetrics = extractProjectMetrics(freshRows);
+            // Update: Explicitly identify Qualtrics Source during automatic sync
+            const freshMetrics = extractProjectMetrics(freshRows, 'Qualtrics Source');
 
             if (existingProject) {
                 // SMART UPDATE: Keep existing reviewed info, only refresh files and metrics

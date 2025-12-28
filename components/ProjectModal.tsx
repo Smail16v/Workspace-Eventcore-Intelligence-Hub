@@ -55,6 +55,9 @@ const ProjectModal: React.FC<ProjectModalProps> = ({ project, onClose, onSave, o
   const [loadingSurveys, setLoadingSurveys] = useState(false);
   const [importingId, setImportingId] = useState<string | null>(null);
 
+  // Manual Source State
+  const [manualSource, setManualSource] = useState('Digivey Source');
+
   // Refs for hidden file inputs
   const logoInputRef = useRef<HTMLInputElement>(null);
   const schemaInputRef = useRef<HTMLInputElement>(null);
@@ -112,6 +115,9 @@ const ProjectModal: React.FC<ProjectModalProps> = ({ project, onClose, onSave, o
             promoter: project.promoter || 'Eventcore',
             logoUrl: project.logoUrl || ''
         });
+
+        // Sync manual source from existing project
+        setManualSource(project.metrics?.source || 'Digivey Source');
         
         // Update file presence indicators based on project data
         setUploadedFiles({
@@ -301,7 +307,7 @@ const ProjectModal: React.FC<ProjectModalProps> = ({ project, onClose, onSave, o
         let prizeDescription = "";
 
         // 1. Determine Source
-        const activeSource = importMode === 'qualtrics' ? 'Qualtrics Source' : 'Digivey Source';
+        const activeSource = importMode === 'qualtrics' ? 'Qualtrics Source' : manualSource;
 
         if (schemaFile) {
             setProgress({ stage: 'Parsing Schema CSV...', percent: 10 });
@@ -319,6 +325,12 @@ const ProjectModal: React.FC<ProjectModalProps> = ({ project, onClose, onSave, o
             // Extract Snapshot Metrics immediately after parsing
             setProgress({ stage: 'Extracting Workspace Metrics...', percent: 25 });
             extractedMetrics = extractProjectMetrics(responsesData, activeSource);
+        } else if (project?.metrics) {
+            // Not uploading new responses, but need to preserve or update source in existing metrics
+            extractedMetrics = {
+                ...project.metrics,
+                source: activeSource
+            };
         }
         
         setProgress({ stage: 'Starting Uploads...', percent: 30 });
@@ -552,6 +564,17 @@ const ProjectModal: React.FC<ProjectModalProps> = ({ project, onClose, onSave, o
                       }} 
                       placeholder="https://domain.com/logo.png" 
                       className="w-full px-5 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800 rounded-2xl outline-none focus:bg-white dark:focus:bg-slate-900 focus:ring-2 focus:ring-blue-500 transition-all text-xs dark:text-white dark:placeholder-slate-500" 
+                   />
+                </div>
+                
+                <div className="col-span-2">
+                   <label className="block text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2 px-1">Data Source</label>
+                   <input 
+                      type="text" 
+                      value={manualSource} 
+                      onChange={(e) => setManualSource(e.target.value)} 
+                      placeholder="e.g. Digivey Source" 
+                      className="w-full px-5 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800 rounded-2xl outline-none focus:bg-white dark:focus:bg-slate-900 focus:ring-2 focus:ring-blue-500 transition-all text-sm font-bold dark:text-white dark:placeholder-slate-500" 
                    />
                 </div>
              </div>

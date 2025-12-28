@@ -1,5 +1,5 @@
 import React from 'react';
-import { ChevronRight, Settings, Loader2 } from 'lucide-react';
+import { ChevronRight, Settings, Loader2, Trophy } from 'lucide-react';
 import { Project } from '../types';
 
 interface ProjectDashboardProps {
@@ -34,9 +34,21 @@ const ProjectDashboard: React.FC<ProjectDashboardProps> = ({ project, onBack, re
                 <img src={project.logoUrl || "https://picsum.photos/200/200"} className="max-h-full max-w-full object-contain" alt="Logo Large" />
              </div>
              <h2 className="text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight mb-4">{project.name}</h2>
-             <div className="flex items-center justify-center gap-4 mb-12">
-                <span className="px-3 py-1 bg-white dark:bg-slate-900 border dark:border-slate-800 rounded-lg text-xs font-bold text-slate-500 dark:text-slate-400">{project.dates}</span>
-                <span className="px-3 py-1 bg-white dark:bg-slate-900 border dark:border-slate-800 rounded-lg text-xs font-bold text-slate-500 dark:text-slate-400">{project.promoter}</span>
+             
+             <div className="flex flex-col items-center gap-4 mb-12">
+                 <div className="flex items-center justify-center gap-4">
+                    <span className="px-3 py-1 bg-white dark:bg-slate-900 border dark:border-slate-800 rounded-lg text-xs font-bold text-slate-500 dark:text-slate-400">{project.dates}</span>
+                    <span className="px-3 py-1 bg-white dark:bg-slate-900 border dark:border-slate-800 rounded-lg text-xs font-bold text-slate-500 dark:text-slate-400">{project.promoter}</span>
+                 </div>
+
+                {project.prizeInfo && project.prizeInfo !== "No prize details found." && (
+                  <div className="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-2xl">
+                     <Trophy className="w-4 h-4 text-amber-500" />
+                     <span className="text-xs font-bold text-amber-700 dark:text-amber-300 italic">
+                        {project.prizeInfo}
+                     </span>
+                  </div>
+                )}
              </div>
              
              <div className="p-12 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-[48px] shadow-xl relative overflow-hidden transition-colors">
