@@ -425,16 +425,58 @@ export default function App() {
 
   // Filtering & Grouping
   const filteredProjects = useMemo(() => {
-    return projects.filter(p => 
-      (p.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (p.venue || '').toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    const term = searchTerm.toLowerCase().trim();
+    if (!term) return projects;
+
+    return projects.filter(p => {
+        // Basic Metadata
+        const metadataMatch = 
+            (p.name || '').toLowerCase().includes(term) ||
+            (p.venue || '').toLowerCase().includes(term) ||
+            (p.location || '').toLowerCase().includes(term) ||
+            (p.country || '').toLowerCase().includes(term) ||
+            (p.promoter || '').toLowerCase().includes(term) ||
+            (p.year || '').toLowerCase().includes(term) ||
+            (p.dates || '').toLowerCase().includes(term);
+
+        if (metadataMatch) return true;
+
+        // Metrics Data (as displayed in ProjectCard)
+        if (p.metrics) {
+            const { 
+                totalRespondents, 
+                avgDuration, 
+                engagement, 
+                surveyLength 
+            } = p.metrics;
+
+            return (
+                (totalRespondents || '').toLowerCase().includes(term) ||
+                (avgDuration || '').toLowerCase().includes(term) ||
+                (engagement || '').toLowerCase().includes(term) ||
+                (surveyLength || '').toLowerCase().includes(term)
+            );
+        }
+
+        return false;
+    });
   }, [projects, searchTerm]);
 
   // Calculate new updates count
   const newUpdatesCount = useMemo(() => {
     return projects.filter(p => (p.updatedAt || p.createdAt || 0) > lastVisit).length;
   }, [projects, lastVisit]);
+
+  // Calculate Total Responses (Dynamic based on search)
+  const totalResponses = useMemo(() => {
+    return filteredProjects.reduce((acc, p) => {
+        if (!p.metrics?.totalRespondents) return acc;
+        // Clean "n = 1,234" to "1234"
+        const cleanNum = p.metrics.totalRespondents.replace(/[^0-9]/g, '');
+        const val = parseInt(cleanNum, 10);
+        return acc + (isNaN(val) ? 0 : val);
+    }, 0);
+  }, [filteredProjects]);
 
   const groupedProjects = useMemo<Record<string, Project[]>>(() => {
     if (groupBy === 'none') return { "All Projects": filteredProjects };
@@ -484,7 +526,17 @@ export default function App() {
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-12">
           <div>
             <h2 className="text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">Project Workspace</h2>
-            <p className="text-slate-500 dark:text-slate-400 mt-1">Organize your event intelligence by Promoter, Year, or Venue.</p>
+            <div className="flex items-center gap-6 mt-4 animate-in fade-in slide-in-from-left-2 duration-500">
+                <div>
+                    <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1">Total Responses</p>
+                    <p className="text-2xl font-black text-blue-600 dark:text-blue-400 tracking-tight leading-none">{totalResponses.toLocaleString()}</p>
+                </div>
+                <div className="w-px h-8 bg-slate-200 dark:bg-slate-800"></div>
+                <div>
+                    <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1">Total Projects</p>
+                    <p className="text-2xl font-black text-slate-900 dark:text-white tracking-tight leading-none">{filteredProjects.length}</p>
+                </div>
+            </div>
           </div>
 
           <div className="flex items-center gap-3">

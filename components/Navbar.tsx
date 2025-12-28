@@ -1,5 +1,5 @@
 import React from 'react';
-import { Globe, User, LogOut, LogIn, Sun, Moon, Settings } from 'lucide-react';
+import { User, LogOut, LogIn, Sun, Moon } from 'lucide-react';
 import { User as FirebaseUser } from '../services/firebase';
 import { logoutUser } from '../services/firebase';
 import { UserProfile } from '../types';
@@ -21,9 +21,11 @@ const Navbar: React.FC<NavbarProps> = ({ user, userProfile, onAuthClick, onProfi
   return (
     <nav className="h-16 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-6 flex items-center justify-between sticky top-0 z-30 transition-colors duration-300">
       <div className="flex items-center gap-3">
-        <div className="bg-blue-600 p-2 rounded-lg shadow-lg shadow-blue-500/20">
-          <Globe className="w-5 h-5 text-white" />
-        </div>
+        <img 
+          src="https://firebasestorage.googleapis.com/v0/b/eventcore-intelligence-hub.firebasestorage.app/o/Eventcore%20logo.png?alt=media" 
+          alt="Eventcore" 
+          className="h-10 w-auto object-contain" 
+        />
         <div>
           <h1 className="font-bold text-lg tracking-tight text-slate-900 dark:text-white">Intelligence Hub</h1>
           <p className="text-[10px] text-slate-400 dark:text-slate-500 uppercase font-bold tracking-widest leading-none">Workspace</p>
