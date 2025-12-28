@@ -26,7 +26,6 @@ The application relies on global variables injected into the `window` object by 
   - `fetchAllUsers` & `updateUserAccess`: Admin-only functions to list users and modify permissions.
 - **Data Access**: 
   - Subscribes to `projects` collection with dynamic queries based on user's `accessLevel`.
-  - Handles batch uploads for CSV-to-Firestore conversion.
 - **Storage**: Manages CSV and Image uploads to Firebase Storage.
 
 ### 2. Gemini AI Service (`services/geminiService.ts`)

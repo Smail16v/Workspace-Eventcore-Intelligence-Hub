@@ -7,22 +7,33 @@ import {
   Filter,
   Loader2,
   Lock,
-  Users
+  Users as UsersIcon
 } from 'lucide-react';
-import { onAuthStateChanged, signInWithCustomToken, User } from 'firebase/auth';
-import { collection, addDoc, onSnapshot, query, doc, updateDoc, setDoc, deleteField, where, documentId } from 'firebase/firestore';
+
+import { 
+    collection, 
+    query, 
+    where, 
+    documentId, 
+    onSnapshot, 
+    doc, 
+    setDoc, 
+    updateDoc, 
+    deleteField 
+} from 'firebase/firestore';
 
 import { 
   auth, 
   db, 
-  appId, 
   subscribeToUserProfile, 
   ensureUserProfileExists, 
-  saveProjectDatasets,
   uploadProjectFile,
   deleteProjectFile,
   uploadProjectLogo,
-  deleteProject
+  deleteProject,
+  onAuthStateChanged,
+  signInWithCustomToken,
+  User 
 } from './services/firebase';
 import { Project, ViewMode, GroupBy, UserProfile } from './types';
 
@@ -84,7 +95,7 @@ export default function App() {
       }
     };
     
-    // Listen for auth state changes
+    // Listen for auth state changes using modular function
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       if (currentUser && currentUser.emailVerified) {
          // User is authenticated and verified
@@ -93,8 +104,6 @@ export default function App() {
          ensureUserProfileExists(currentUser);
       } else {
          // User is missing OR user exists but email is not verified
-         // We treat unverified users as 'logged out' for the app context to block access,
-         // but the AuthModal will handle the prompt to verify.
          setUser(null);
          setUserProfile(null);
          setAuthModalOpen(true);
@@ -154,13 +163,14 @@ export default function App() {
     }
 
     let q;
+    const projectsRef = collection(db, 'projects');
 
     if (isAdmin) {
         // ADMIN: Fetch all projects
-        q = query(collection(db, 'projects'));
+        q = query(projectsRef);
     } else if (accessList.length > 0) {
         // GUEST: Fetch only allowed projects (Max 30 due to Firestore limits)
-        q = query(collection(db, 'projects'), where(documentId(), 'in', accessList.slice(0, 30)));
+        q = query(projectsRef, where(documentId(), 'in', accessList.slice(0, 30)));
     } else {
         // GUEST (No Access):
         setProjects([]);
@@ -168,7 +178,7 @@ export default function App() {
         return;
     }
 
-    const unsubscribeData = onSnapshot(q, 
+    const unsubscribeData = onSnapshot(q,
       (snapshot) => {
         const list = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Project));
         setProjects(list);
@@ -211,8 +221,8 @@ export default function App() {
   // Actions
   const handleSaveProject = async (
     data: Partial<Project>, 
-    schemaData?: any[], 
-    responsesData?: any[],
+    schemaData?: any[], // No longer used for seeding
+    responsesData?: any[], // No longer used for seeding
     schemaFile?: File | null,
     responsesFile?: File | null,
     deleteSchema?: boolean,
@@ -237,14 +247,15 @@ export default function App() {
     try {
       let projectId = modalState.project?.id;
       let isNew = false;
-
+      
       // If creating new project, generate ID immediately so we can use it for Storage upload
       if (!projectId) {
          isNew = true;
+         // Generate ID using doc() on the collection reference
          projectId = doc(projectsRef).id;
       }
 
-      // --- Storage Operations (Sync) ---
+      // --- Storage Operations (Physical Storage) ---
       
       // 0. Logo Upload
       if (logoFile && projectId) {
@@ -307,13 +318,6 @@ export default function App() {
           ...cleanData,
           updatedAt: Date.now()
         });
-      }
-
-      // --- Firestore Data Rows Operation (Subcollections) ---
-      // We still run this to support the requirement of converting CSV to Firestore Database
-      if ((schemaData && schemaData.length > 0) || (responsesData && responsesData.length > 0)) {
-          if (onProgress) onProgress("Processing Datasets...", 100);
-          await saveProjectDatasets(projectId, schemaData, responsesData);
       }
 
       setModalState({ isOpen: false, project: null });
@@ -410,7 +414,7 @@ export default function App() {
                 onClick={() => setAdminModalOpen(true)}
                 className="bg-slate-800 hover:bg-slate-900 text-white px-4 py-2.5 rounded-xl font-bold text-sm shadow-lg shadow-slate-500/20 flex items-center gap-2 transition-all active:scale-95"
               >
-                <Users className="w-4 h-4" /> Manage Users
+                <UsersIcon className="w-4 h-4" /> Manage Users
               </button>
             )}
 

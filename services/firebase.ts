@@ -1,16 +1,27 @@
-import { initializeApp } from 'firebase/app';
+import firebase from 'firebase/compat/app';
+import 'firebase/compat/auth';
 import { 
-  getAuth, 
-  createUserWithEmailAndPassword, 
-  signInWithEmailAndPassword, 
-  sendPasswordResetEmail, 
-  sendEmailVerification,
-  signOut,
-  deleteUser,
-  User
-} from 'firebase/auth';
-import { getFirestore, doc, setDoc, getDoc, updateDoc, deleteDoc, onSnapshot, writeBatch, collection, getDocs } from 'firebase/firestore';
-import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject, uploadBytesResumable } from 'firebase/storage';
+  getFirestore, 
+  doc, 
+  setDoc, 
+  getDoc, 
+  updateDoc, 
+  deleteDoc, 
+  onSnapshot, 
+  collection, 
+  getDocs, 
+  deleteField,
+  query,
+  where,
+  documentId
+} from 'firebase/firestore';
+import { 
+  getStorage, 
+  ref, 
+  uploadBytesResumable, 
+  getDownloadURL, 
+  deleteObject 
+} from 'firebase/storage';
 import { UserProfile } from '../types';
 
 // Default configuration provided
@@ -23,7 +34,7 @@ const defaultFirebaseConfig = {
   appId: "1:166550528716:web:0560e89cfd4b8e2165d869"
 };
 
-// Safe parsing of the config: Use injected config if available, otherwise default to provided credentials
+// Safe parsing of the config
 let firebaseConfig = defaultFirebaseConfig;
 try {
   if (typeof window !== 'undefined' && window.__firebase_config) {
@@ -34,35 +45,57 @@ try {
 }
 
 // Initialize Firebase
-export const app = initializeApp(firebaseConfig);
-export const auth = getAuth(app);
-export const db = getFirestore(app);
-export const storage = getStorage(app);
+// We use the compat library for App and Auth to handle environment inconsistencies with named exports,
+// but use Modular SDK for Firestore and Storage to match the usage in the rest of the app.
+export const app = firebase.initializeApp(firebaseConfig);
+export const auth = app.auth();
+export const db = getFirestore(app as any);
+export const storage = getStorage(app as any);
 export const appId = typeof window.__app_id !== 'undefined' ? window.__app_id : 'eventcore-workspace';
 
+// Re-export User type from compat namespace
+export type User = firebase.User;
+
+// Export helpers for App.tsx
+export { deleteField };
+
 // --- Authentication Helpers ---
+
+// Adapters to match Modular API signature expected by App.tsx
+export const onAuthStateChanged = (
+    authInstance: firebase.auth.Auth, 
+    nextOrObserver: (user: firebase.User | null) => void
+) => {
+    return authInstance.onAuthStateChanged(nextOrObserver);
+};
+
+export const signInWithCustomToken = (authInstance: firebase.auth.Auth, token: string) => {
+    return authInstance.signInWithCustomToken(token);
+};
 
 export const registerUser = async (email: string, password: string, fullName: string, company: string) => {
   try {
     // 1. Create the account
-    const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+    const userCredential = await auth.createUserWithEmailAndPassword(email, password);
     const user = userCredential.user;
 
-    // 2. Save the extra info (Company, etc.) to Firestore
-    await setDoc(doc(db, "users", user.uid), {
-      uid: user.uid,
-      fullName: fullName,
-      companyName: company,
-      email: email,
-      accessLevel: [], // Default: Guest with no project access
-      createdAt: Date.now()
-    });
+    if (user) {
+        // 2. Save the extra info (Company, etc.) to Firestore
+        await setDoc(doc(db, "users", user.uid), {
+            uid: user.uid,
+            fullName: fullName,
+            companyName: company,
+            email: email,
+            accessLevel: [], // Default: Guest with no project access
+            createdAt: Date.now()
+        });
 
-    // 3. Send Verification Email
-    await sendEmailVerification(user);
+        // 3. Send Verification Email
+        await user.sendEmailVerification();
 
-    // 4. Force Sign Out (so they can't access app until verified)
-    await signOut(auth);
+        // 4. Force Sign Out (so they can't access app until verified)
+        await auth.signOut();
+    }
 
     return { success: true };
   } catch (error: any) {
@@ -107,7 +140,7 @@ export const ensureUserProfileExists = async (user: User) => {
 export const resendVerificationEmail = async () => {
   const user = auth.currentUser;
   if (user) {
-    await sendEmailVerification(user);
+    await user.sendEmailVerification();
     return { success: "A new verification link has been sent to your inbox." };
   }
   return { error: "No user found. Please sign in again." };
@@ -115,15 +148,15 @@ export const resendVerificationEmail = async () => {
 
 export const loginUser = async (email: string, password: string) => {
     try {
-        const userCredential = await signInWithEmailAndPassword(auth, email, password);
+        const userCredential = await auth.signInWithEmailAndPassword(email, password);
         const user = userCredential.user;
 
-        if (!user.emailVerified) {
+        if (user && !user.emailVerified) {
             // DO NOT sign out here immediately; let the UI handle the prompt
             return { unverified: true, email: user.email };
         }
 
-        await ensureUserProfileExists(user);
+        if (user) await ensureUserProfileExists(user);
 
         return { success: true };
     } catch (error: any) {
@@ -137,7 +170,7 @@ export const loginUser = async (email: string, password: string) => {
 
 export const resetPassword = async (email: string) => {
   try {
-    await sendPasswordResetEmail(auth, email);
+    await auth.sendPasswordResetEmail(email);
     return { success: "Password reset email sent! Check your inbox." };
   } catch (error: any) {
     if (error.code === 'auth/user-not-found') {
@@ -148,7 +181,7 @@ export const resetPassword = async (email: string) => {
 };
 
 export const logoutUser = async () => {
-    await signOut(auth);
+    await auth.signOut();
 };
 
 // --- Profile & Admin Management ---
@@ -183,7 +216,7 @@ export const deleteUserAccount = async () => {
 
     try {
         await deleteDoc(doc(db, "users", user.uid));
-        await deleteUser(user);
+        await user.delete();
     } catch (error) {
         console.error("Error deleting account:", error);
         throw error;
@@ -213,7 +246,6 @@ export const uploadProjectFile = (
 ): Promise<string> => {
     return new Promise((resolve, reject) => {
         // Folder structure: project_CSVs/{projectId}/{type}.csv
-        // Using .csv extension explicitly as these are strictly CSVs
         const storageRef = ref(storage, `project_CSVs/${projectId}/${type}.csv`);
         const uploadTask = uploadBytesResumable(storageRef, file);
 
@@ -269,89 +301,6 @@ export const deleteProjectFile = async (projectId: string, type: 'schema' | 'res
     }
 };
 
-// --- Bulk Data Management ---
-
-const sanitizeFirestoreData = (data: any) => {
-  if (!data || typeof data !== 'object') return {};
-  const clean: any = {};
-  
-  Object.keys(data).forEach(key => {
-    const cleanKey = key.replace(/\./g, '_').trim();
-    if (!cleanKey) return;
-
-    const value = data[key];
-    if (value !== undefined) {
-      clean[cleanKey] = value;
-    }
-  });
-  return clean;
-};
-
-export const saveProjectDatasets = async (
-  projectId: string, 
-  schemaRows?: any[], 
-  responseRows?: any[]
-) => {
-  // Delay helper to yield execution and prevent write stream exhaustion
-  const delay = (ms: number) => new Promise(res => setTimeout(res, ms));
-
-  const uploadBatch = async (collectionName: string, rows: any[]) => {
-    // Reduced batch size to safely stay within limits and client queue capacity
-    const BATCH_SIZE = 250; 
-    const total = rows.length;
-    
-    console.log(`Starting batch upload for ${collectionName}: ${total} rows`);
-
-    for (let i = 0; i < total; i += BATCH_SIZE) {
-      const chunk = rows.slice(i, i + BATCH_SIZE);
-      const batch = writeBatch(db);
-      let opCount = 0;
-
-      chunk.forEach((row) => {
-        const cleanRow = sanitizeFirestoreData(row);
-        if (Object.keys(cleanRow).length > 0) {
-           const docRef = doc(collection(db, 'projects', projectId, collectionName));
-           batch.set(docRef, cleanRow);
-           opCount++;
-        }
-      });
-
-      if (opCount > 0) {
-         try {
-             await batch.commit();
-             console.log(`Uploaded batch ${Math.floor(i / BATCH_SIZE) + 1} for ${collectionName} (${opCount} docs)`);
-             // Mandatory delay to allow SDK to clear its write queue
-             await delay(100); 
-         } catch (e: any) {
-             console.error(`Batch commit failed for ${collectionName} at index ${i}`, e);
-             // If rate limited, wait longer and retry once
-             if (e.code === 'resource-exhausted') {
-                 console.warn("Resource exhausted, retrying after 2s...");
-                 await delay(2000);
-                 await batch.commit();
-             } else {
-                 throw e;
-             }
-         }
-      }
-    }
-  };
-
-  // Execute uploads sequentially instead of parallel to reduce write pressure
-  if (schemaRows && schemaRows.length > 0) {
-    await uploadBatch('schema', schemaRows);
-  }
-  
-  if (responseRows && responseRows.length > 0) {
-    // Small delay between collection switches
-    await delay(500); 
-    await uploadBatch('responses', responseRows);
-  }
-};
-
 export const deleteProject = async (projectId: string) => {
     await deleteDoc(doc(db, "projects", projectId));
-    // Note: This operation removes the project from the dashboard. 
-    // Subcollections (schema/responses rows) and Storage files are not automatically deleted by Firestore client SDKs.
-    // In a production environment, a Cloud Function would listen to the deletion and clean up artifacts.
 };

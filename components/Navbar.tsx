@@ -1,6 +1,6 @@
 import React from 'react';
 import { Globe, User, LogOut, LogIn, Sun, Moon, Settings } from 'lucide-react';
-import { User as FirebaseUser } from 'firebase/auth';
+import { User as FirebaseUser } from '../services/firebase';
 import { logoutUser } from '../services/firebase';
 import { UserProfile } from '../types';
 
