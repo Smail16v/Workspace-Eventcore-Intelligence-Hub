@@ -25,6 +25,28 @@ const ProjectDashboard: React.FC<ProjectDashboardProps> = ({ project, onBack, re
   // 1. Fetch and Parse Data on Mount
   useEffect(() => {
     let isMounted = true;
+    let retryCount = 0;
+    const MAX_RETRIES = 2;
+
+    async function fetchWithRetry(url: string, label: string) {
+        for (let i = 0; i <= MAX_RETRIES; i++) {
+            try {
+                // cache: 'no-store' ensures we don't hit stale CORS headers
+                // credentials: 'omit' prevents sending cookies which can trigger strict CORS checks
+                const res = await fetch(url, { 
+                    mode: 'cors', 
+                    cache: 'no-store',
+                    credentials: 'omit' 
+                });
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                return await res.text();
+            } catch (e: any) {
+                if (i === MAX_RETRIES) throw new Error(`Failed to fetch ${label}: ${e.message}`);
+                await new Promise(r => setTimeout(r, 1000 * (i + 1))); // Exponential backoff
+            }
+        }
+        return '';
+    }
 
     async function loadData() {
       if (!project.schemaUrl || !project.responsesUrl) {
@@ -41,19 +63,9 @@ const ProjectDashboard: React.FC<ProjectDashboardProps> = ({ project, onBack, re
             setError(null);
         }
 
-        // Fetch files from Firebase Storage URLs
-        // Note: 'fetch' requires CORS configuration on the Firebase Storage bucket.
-        const [schemaRes, responsesRes] = await Promise.all([
-          fetch(project.schemaUrl, { mode: 'cors' }),
-          fetch(project.responsesUrl, { mode: 'cors' })
-        ]);
-
-        if (!schemaRes.ok) throw new Error(`Failed to fetch schema (Status: ${schemaRes.status})`);
-        if (!responsesRes.ok) throw new Error(`Failed to fetch responses (Status: ${responsesRes.status})`);
-
         const [schemaText, responsesText] = await Promise.all([
-          schemaRes.text(),
-          responsesRes.text()
+          fetchWithRetry(project.schemaUrl, 'Schema'),
+          fetchWithRetry(project.responsesUrl, 'Responses')
         ]);
 
         // Parse using Hub 2 services
@@ -71,8 +83,8 @@ const ProjectDashboard: React.FC<ProjectDashboardProps> = ({ project, onBack, re
       } catch (e: any) {
         console.error("Failed to load project data", e);
         if (isMounted) {
-            if (e.name === 'TypeError' && e.message === 'Failed to fetch') {
-                setError("Network Error: Could not fetch data. This is almost certainly a CORS issue with Firebase Storage. Please see instructions below.");
+            if (e.message.includes('Failed to fetch') || e.message.includes('NetworkError')) {
+                setError("Network/CORS Error: Could not download project files. Check your internet connection or Firebase CORS settings.");
             } else {
                 setError(e.message || "Failed to load project data");
             }
@@ -84,7 +96,7 @@ const ProjectDashboard: React.FC<ProjectDashboardProps> = ({ project, onBack, re
     loadData();
 
     return () => { isMounted = false; };
-  }, [project.id, project.schemaUrl, project.responsesUrl]); // Dependency optimization
+  }, [project.id, project.schemaUrl, project.responsesUrl]);
 
   // 2. Derive Filtered Data
   const filteredData = useMemo(() => 
@@ -162,7 +174,7 @@ const ProjectDashboard: React.FC<ProjectDashboardProps> = ({ project, onBack, re
                     {error}
                 </p>
                 
-                {error.includes("CORS") && (
+                {(error.includes("CORS") || error.includes("Network")) && (
                     <div className="bg-slate-50 dark:bg-slate-800 p-4 rounded-xl text-left mb-6 text-xs text-slate-600 dark:text-slate-300 font-mono overflow-auto max-h-32 border border-slate-200 dark:border-slate-700">
                         <p className="font-bold mb-2 text-slate-900 dark:text-white">Quick Fix: Add CORS config to Google Cloud</p>
                         <p>1. Create cors.json: <br/>[&#123;"origin": ["*"], "method": ["GET"], "maxAgeSeconds": 3600&#125;]</p>
