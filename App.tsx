@@ -551,7 +551,7 @@ export default function App() {
         toggleTheme={toggleTheme}
       />
 
-      <main className="flex-1 px-6 md:px-10 py-6 md:py-10 max-w-7xl mx-auto w-full">
+      <main className="flex-1 max-w-7xl mx-auto w-full px-6 md:px-10 py-10 pb-safe">
         {/* Header Section */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-12">
           <div>

@@ -19,17 +19,18 @@ const Navbar: React.FC<NavbarProps> = ({ user, userProfile, onAuthClick, onProfi
   const displayCompany = userProfile?.companyName || 'Eventcore Member';
 
   return (
-    <nav className="h-16 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 sticky top-0 z-30 transition-colors duration-300">
-      <div className="max-w-7xl mx-auto px-6 md:px-10 h-full flex items-center justify-between w-full">
-        <div className="flex items-center gap-3">
+    <nav className="h-16 md:h-20 bg-white/95 backdrop-blur dark:bg-slate-900/95 border-b border-slate-200 dark:border-slate-800 sticky top-0 z-30 pt-safe transition-colors">
+      <div className="max-w-7xl mx-auto w-full px-6 md:px-10 h-full flex items-center justify-between">
+        <div className="flex items-center gap-2 md:gap-4">
           <img 
             src="https://firebasestorage.googleapis.com/v0/b/eventcore-intelligence-hub.firebasestorage.app/o/Eventcore-logo.svg?alt=media&token=68dbed9c-d471-41fe-8c2a-2443ba78226e" 
             alt="Eventcore" 
-            className="h-10 w-auto object-contain" 
+            className="h-8 md:h-10 w-auto object-contain" 
           />
+          <div className="h-8 w-px bg-slate-200 dark:bg-slate-800 mx-1 hidden sm:block"></div>
           <div>
-            <h1 className="font-bold text-lg tracking-tight text-slate-900 dark:text-white">Intelligence Hub</h1>
-            <p className="text-[10px] text-slate-400 dark:text-slate-500 uppercase font-bold tracking-widest leading-none">Workspace</p>
+            <h1 className="font-bold text-sm md:text-lg tracking-tight text-slate-900 dark:text-white">Intelligence Hub</h1>
+            <p className="text-[8px] md:text-[10px] text-slate-400 dark:text-slate-500 uppercase font-bold tracking-widest leading-none">Workspace</p>
           </div>
         </div>
 

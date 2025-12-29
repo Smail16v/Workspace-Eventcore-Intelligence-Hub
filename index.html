@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>Eventcore Workspace</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -26,6 +26,10 @@
       .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
       .dark .custom-scrollbar::-webkit-scrollbar-thumb { background: #475569; }
       .dark .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #64748b; }
+      
+      /* Safe Area Utilities for iPhone Notch */
+      .pt-safe { padding-top: env(safe-area-inset-top); }
+      .pb-safe { padding-bottom: env(safe-area-inset-bottom); }
     </style>
   <script type="importmap">
 {

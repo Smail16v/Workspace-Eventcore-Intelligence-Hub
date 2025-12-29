@@ -162,36 +162,35 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ project, viewMode, onSelect, 
          {metrics ? (
            <div className="bg-slate-50 dark:bg-slate-800/50 rounded-2xl p-4 flex flex-col gap-4 border border-slate-100 dark:border-slate-800/50">
               
-              {/* Row 1: Respondents, Date Range, and Days */}
+              {/* Row 1: Active Window and Day Count */}
               <div className="flex flex-col gap-2 pb-3 border-b border-slate-200 dark:border-slate-700/50">
                   <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-200">
                      <Users className="w-4 h-4 text-blue-500" /> {metrics.totalRespondents}
                   </div>
                   <div className="flex items-center justify-between">
                      <div className="flex items-center gap-1.5 text-[10px] font-medium text-slate-500 dark:text-slate-400">
-                        <CalendarRange className="w-3.5 h-3.5 text-blue-500" /> {metrics.dateRange}
+                        <CalendarRange className="w-3.5 h-3.5 text-blue-500" /> {metrics.dateRange || '-'}
                      </div>
-                     <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400">{metrics.totalDays || '0 days'}</span>
+                     <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400">
+                        {metrics.totalDays || '0 days'}
+                     </span>
                   </div>
               </div>
 
-              {/* Row 2: Secondary Stats */}
-              <div className="grid grid-cols-3 gap-2">
-                  <div className="flex flex-col items-center gap-1">
-                     <Clock className="w-3.5 h-3.5 text-blue-500" />
-                     <span className="text-[10px] font-medium text-slate-600 dark:text-slate-400">{metrics.avgDuration}</span>
+              {/* Row 2: Performance Stats Grid (2 columns on mobile, 3 on desktop) */}
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-y-3 gap-x-2">
+                  <div className="flex flex-col items-start md:items-center gap-1 text-[10px] text-slate-600 dark:text-slate-400">
+                     <Clock className="w-3.5 h-3.5 text-blue-500" /> {metrics.avgDuration}
                   </div>
-                  <div className="flex flex-col items-center gap-1 border-x border-slate-200 dark:border-slate-700/50">
-                     <Activity className="w-3.5 h-3.5 text-blue-500" />
-                     <span className="text-[10px] font-medium text-slate-600 dark:text-slate-400">{metrics.engagement}</span>
+                  <div className="flex flex-col items-start md:items-center gap-1 text-[10px] text-slate-600 dark:text-slate-400">
+                     <Activity className="w-3.5 h-3.5 text-blue-500" /> {metrics.engagement}
                   </div>
-                  <div className="flex flex-col items-center gap-1">
-                     <FileText className="w-3.5 h-3.5 text-blue-500" />
-                     <span className="text-[10px] font-medium text-slate-600 dark:text-slate-400">{metrics.surveyLength}</span>
+                  <div className="flex flex-col items-start md:items-center gap-1 text-[10px] text-slate-600 dark:text-slate-400 col-span-2 md:col-span-1 border-t md:border-t-0 pt-2 md:pt-0 border-slate-200 dark:border-slate-700/50">
+                     <FileText className="w-3.5 h-3.5 text-blue-500" /> {metrics.surveyLength}
                   </div>
               </div>
 
-              {/* Row 3: Online/On-site Split */}
+              {/* Row 3: Online/On-site Progress Bar */}
               <div className="pt-2 border-t border-slate-200 dark:border-slate-700/50">
                  <div className="flex justify-between text-[9px] font-bold uppercase text-slate-400 mb-1.5">
                     <span className="flex items-center gap-1"><Globe className="w-2.5 h-2.5 text-blue-500" /> {metrics.onlinePercent}% Online</span>
