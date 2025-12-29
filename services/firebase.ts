@@ -1,5 +1,17 @@
-import firebase from 'firebase/compat/app';
-import 'firebase/compat/auth';
+import { initializeApp } from 'firebase/app';
+import { 
+  getAuth, 
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  signOut,
+  sendEmailVerification,
+  sendPasswordResetEmail,
+  onAuthStateChanged as onAuthStateChangedModular,
+  signInWithCustomToken as signInWithCustomTokenModular,
+  User as FirebaseUser,
+  Auth,
+  deleteUser
+} from 'firebase/auth';
 import { 
   getFirestore, 
   doc, 
@@ -44,17 +56,15 @@ try {
   console.warn("Failed to parse firebase config, using default", e);
 }
 
-// Initialize Firebase
-// We use the compat library for App and Auth to handle environment inconsistencies with named exports,
-// but use Modular SDK for Firestore and Storage to match the usage in the rest of the app.
-export const app = firebase.initializeApp(firebaseConfig);
-export const auth = app.auth();
-export const db = getFirestore(app as any);
-export const storage = getStorage(app as any);
+// Initialize Firebase using Modular SDK
+export const app = initializeApp(firebaseConfig);
+export const auth = getAuth(app);
+export const db = getFirestore(app);
+export const storage = getStorage(app);
 export const appId = typeof window.__app_id !== 'undefined' ? window.__app_id : 'eventcore-workspace';
 
-// Re-export User type from compat namespace
-export type User = firebase.User;
+// Export User type
+export type User = FirebaseUser;
 
 // Export helpers for App.tsx
 export { deleteField };
@@ -63,20 +73,20 @@ export { deleteField };
 
 // Adapters to match Modular API signature expected by App.tsx
 export const onAuthStateChanged = (
-    authInstance: firebase.auth.Auth, 
-    nextOrObserver: (user: firebase.User | null) => void
+    authInstance: Auth, 
+    nextOrObserver: (user: FirebaseUser | null) => void
 ) => {
-    return authInstance.onAuthStateChanged(nextOrObserver);
+    return onAuthStateChangedModular(authInstance, nextOrObserver);
 };
 
-export const signInWithCustomToken = (authInstance: firebase.auth.Auth, token: string) => {
-    return authInstance.signInWithCustomToken(token);
+export const signInWithCustomToken = (authInstance: Auth, token: string) => {
+    return signInWithCustomTokenModular(authInstance, token);
 };
 
 export const registerUser = async (email: string, password: string, fullName: string, company: string) => {
   try {
     // 1. Create the account
-    const userCredential = await auth.createUserWithEmailAndPassword(email, password);
+    const userCredential = await createUserWithEmailAndPassword(auth, email, password);
     const user = userCredential.user;
 
     if (user) {
@@ -91,10 +101,10 @@ export const registerUser = async (email: string, password: string, fullName: st
         });
 
         // 3. Send Verification Email
-        await user.sendEmailVerification();
+        await sendEmailVerification(user);
 
         // 4. Force Sign Out (so they can't access app until verified)
-        await auth.signOut();
+        await signOut(auth);
     }
 
     return { success: true };
@@ -140,7 +150,7 @@ export const ensureUserProfileExists = async (user: User) => {
 export const resendVerificationEmail = async () => {
   const user = auth.currentUser;
   if (user) {
-    await user.sendEmailVerification();
+    await sendEmailVerification(user);
     return { success: "A new verification link has been sent to your inbox." };
   }
   return { error: "No user found. Please sign in again." };
@@ -148,7 +158,7 @@ export const resendVerificationEmail = async () => {
 
 export const loginUser = async (email: string, password: string) => {
     try {
-        const userCredential = await auth.signInWithEmailAndPassword(email, password);
+        const userCredential = await signInWithEmailAndPassword(auth, email, password);
         const user = userCredential.user;
 
         if (user && !user.emailVerified) {
@@ -170,7 +180,7 @@ export const loginUser = async (email: string, password: string) => {
 
 export const resetPassword = async (email: string) => {
   try {
-    await auth.sendPasswordResetEmail(email);
+    await sendPasswordResetEmail(auth, email);
     return { success: "Password reset email sent! Check your inbox." };
   } catch (error: any) {
     if (error.code === 'auth/user-not-found') {
@@ -181,7 +191,7 @@ export const resetPassword = async (email: string) => {
 };
 
 export const logoutUser = async () => {
-    await auth.signOut();
+    await signOut(auth);
 };
 
 // --- Profile & Admin Management ---
@@ -216,7 +226,7 @@ export const deleteUserAccount = async () => {
 
     try {
         await deleteDoc(doc(db, "users", user.uid));
-        await user.delete();
+        await deleteUser(user);
     } catch (error) {
         console.error("Error deleting account:", error);
         throw error;

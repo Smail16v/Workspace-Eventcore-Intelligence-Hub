@@ -10,7 +10,7 @@ interface ProjectDashboardProps {
 
 const ProjectDashboard: React.FC<ProjectDashboardProps> = ({ project, onBack, readOnly }) => {
   return (
-    <div className="min-h-screen bg-[#F8FAFC] dark:bg-slate-950 flex flex-col animate-in fade-in duration-500 transition-colors">
+    <div className="min-h-screen bg-[#E5E5E6] dark:bg-slate-950 flex flex-col animate-in fade-in duration-500 transition-colors">
        <div className="h-16 bg-white dark:bg-slate-900 border-b dark:border-slate-800 flex items-center px-6 justify-between shadow-sm transition-colors">
           <button onClick={onBack} className="flex items-center gap-2 text-sm font-bold text-blue-600 dark:text-blue-400 hover:gap-3 transition-all">
              <ChevronRight className="w-4 h-4 rotate-180" /> Back to Workspace

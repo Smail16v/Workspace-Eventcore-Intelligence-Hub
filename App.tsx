@@ -31,12 +31,12 @@ import {
   db, 
   subscribeToUserProfile, 
   ensureUserProfileExists, 
-  uploadProjectFile,
+  uploadProjectFile, 
   deleteProjectFile, 
-  uploadProjectLogo,
-  deleteProject,
-  onAuthStateChanged,
-  signInWithCustomToken,
+  uploadProjectLogo, 
+  deleteProject, 
+  onAuthStateChanged, 
+  signInWithCustomToken, 
   User 
 } from './services/firebase';
 import { listSurveys, importSurveyData } from './services/qualtricsService';
@@ -541,7 +541,7 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans flex flex-col transition-colors duration-300">
+    <div className="min-h-screen bg-[#E5E5E6] dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans flex flex-col transition-colors duration-300">
       <Navbar 
         user={user} 
         userProfile={userProfile}
@@ -551,7 +551,7 @@ export default function App() {
         toggleTheme={toggleTheme}
       />
 
-      <main className="flex-1 p-6 md:p-10 max-w-7xl mx-auto w-full">
+      <main className="flex-1 px-6 md:px-10 py-6 md:py-10 max-w-7xl mx-auto w-full">
         {/* Header Section */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-12">
           <div>
