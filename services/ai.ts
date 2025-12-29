@@ -47,7 +47,7 @@ export const getSemanticValues = async (question: string, options: string[]): Pr
         `;
         
         const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash-preview-09-2025', // Updated to valid 2.5 model
+            model: 'gemini-2.5-flash-preview-09-2025', 
             contents: prompt,
             config: {
                 responseMimeType: 'application/json'
