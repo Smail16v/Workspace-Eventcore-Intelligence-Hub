@@ -15,7 +15,9 @@
     "react-dom": "^19.2.3",
     "firebase": "^12.7.0",
     "jszip": "3.10.1",
-    "papaparse": "5.4.1"
+    "papaparse": "5.4.1",
+    "recharts": "2.12.7",
+    "highcharts": "^12.4.0"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",

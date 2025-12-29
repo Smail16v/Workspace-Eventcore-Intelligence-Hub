@@ -1,6 +1,10 @@
-import React from 'react';
-import { ChevronRight, Settings, Loader2, Trophy } from 'lucide-react';
-import { Project } from '../types';
+
+import React, { useState, useEffect, useMemo } from 'react';
+import { ChevronRight, Settings, Loader2, Trophy, BarChart2, Table as TableIcon, Search, Database, AlertTriangle, RefreshCcw } from 'lucide-react';
+import { Project, QuestionDef, SurveyResponse, FilterState } from '../types';
+import { parseSchemaCsv, parseResponsesCsv, normalizeData, filterData } from '../services/parser';
+import { QuestionCard } from './QuestionCard';
+import { ToplineSummary } from './ToplineSummary';
 
 interface ProjectDashboardProps {
   project: Project;
@@ -9,55 +13,179 @@ interface ProjectDashboardProps {
 }
 
 const ProjectDashboard: React.FC<ProjectDashboardProps> = ({ project, onBack, readOnly }) => {
-  return (
-    <div className="min-h-screen bg-[#E5E5E6] dark:bg-slate-950 flex flex-col animate-in fade-in duration-500 transition-colors">
-       <div className="h-16 bg-white dark:bg-slate-900 border-b dark:border-slate-800 flex items-center px-6 justify-between shadow-sm transition-colors">
-          <button onClick={onBack} className="flex items-center gap-2 text-sm font-bold text-blue-600 dark:text-blue-400 hover:gap-3 transition-all">
-             <ChevronRight className="w-4 h-4 rotate-180" /> Back to Workspace
-          </button>
-          <div className="flex items-center gap-3">
-             <div className="w-8 h-8 rounded-lg border dark:border-slate-700 p-1 bg-white dark:bg-slate-800">
-                <img src={project.logoUrl || "https://picsum.photos/100/100"} className="max-h-full max-w-full object-contain mx-auto" alt="Logo" />
-             </div>
-             <span className="font-extrabold text-sm tracking-tight text-slate-900 dark:text-white">{project.name} Hub</span>
-          </div>
-          <div className="flex items-center gap-4">
-             <div className="h-8 w-px bg-slate-100 dark:bg-slate-800"></div>
-             {!readOnly && (
-                <button className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl text-slate-400 dark:text-slate-500 transition-colors"><Settings className="w-5 h-5" /></button>
-             )}
-          </div>
-       </div>
-       <div className="flex-1 flex flex-col items-center justify-center p-10">
-          <div className="max-w-xl w-full text-center">
-             <div className="w-28 h-28 bg-white dark:bg-slate-900 rounded-[40px] shadow-2xl flex items-center justify-center mx-auto mb-10 p-6 border-4 border-blue-50 dark:border-blue-900/30">
-                <img src={project.logoUrl || "https://picsum.photos/200/200"} className="max-h-full max-w-full object-contain" alt="Logo Large" />
-             </div>
-             <h2 className="text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight mb-4">{project.name}</h2>
-             
-             <div className="flex flex-col items-center gap-4 mb-12">
-                 <div className="flex items-center justify-center gap-4">
-                    <span className="px-3 py-1 bg-white dark:bg-slate-900 border dark:border-slate-800 rounded-lg text-xs font-bold text-slate-500 dark:text-slate-400">{project.dates}</span>
-                    <span className="px-3 py-1 bg-white dark:bg-slate-900 border dark:border-slate-800 rounded-lg text-xs font-bold text-slate-500 dark:text-slate-400">{project.promoter}</span>
-                 </div>
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [questions, setQuestions] = useState<QuestionDef[]>([]);
+  const [normalizedData, setNormalizedData] = useState<SurveyResponse[]>([]);
+  const [filters, setFilters] = useState<FilterState>({});
+  const [viewMode, setViewMode] = useState<'chart' | 'table'>('table');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [surveyTitle, setSurveyTitle] = useState(project.name);
 
-                {project.prizeInfo && project.prizeInfo !== "No prize details found." && (
-                  <div className="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-2xl">
-                     <Trophy className="w-4 h-4 text-amber-500" />
-                     <span className="text-xs font-bold text-amber-700 dark:text-amber-300 italic">
-                        {project.prizeInfo}
-                     </span>
-                  </div>
-                )}
+  // 1. Fetch and Parse Data on Mount
+  useEffect(() => {
+    async function loadData() {
+      if (!project.schemaUrl || !project.responsesUrl) {
+          setError("Project is missing data files. Please re-initialize via Edit.");
+          setLoading(false);
+          return;
+      }
+      
+      try {
+        setLoading(true);
+        setError(null);
+
+        // Fetch files from Firebase Storage URLs
+        // Note: 'fetch' requires CORS configuration on the Firebase Storage bucket.
+        const [schemaRes, responsesRes] = await Promise.all([
+          fetch(project.schemaUrl),
+          fetch(project.responsesUrl)
+        ]);
+
+        if (!schemaRes.ok) throw new Error(`Failed to fetch schema (Status: ${schemaRes.status})`);
+        if (!responsesRes.ok) throw new Error(`Failed to fetch responses (Status: ${responsesRes.status})`);
+
+        const [schemaText, responsesText] = await Promise.all([
+          schemaRes.text(),
+          responsesRes.text()
+        ]);
+
+        // Parse using Hub 2 services
+        const qs = await parseSchemaCsv(schemaText);
+        const rawRs = await parseResponsesCsv(responsesText);
+        
+        if (qs.length === 0) {
+            console.warn("Schema parsed but 0 questions found.");
+        }
+
+        setQuestions(qs);
+        setNormalizedData(normalizeData(rawRs, qs));
+      } catch (e: any) {
+        console.error("Failed to load project data", e);
+        if (e.name === 'TypeError' && e.message === 'Failed to fetch') {
+            setError("Network Error: Could not fetch data. This is likely a CORS issue on the Storage Bucket.");
+        } else {
+            setError(e.message || "Failed to load project data");
+        }
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadData();
+  }, [project]);
+
+  // 2. Derive Filtered Data
+  const filteredData = useMemo(() => 
+    filterData(normalizedData, questions, filters), 
+  [normalizedData, questions, filters]);
+
+  const displayedQuestions = useMemo(() => {
+    if (!searchQuery) return questions;
+    return questions.filter(q => 
+        q.id.toLowerCase().includes(searchQuery.toLowerCase()) || 
+        q.text.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+  }, [questions, searchQuery]);
+
+  const handleToggleFilter = (qId: string, value: string) => {
+    setFilters(prev => {
+        const current = prev[qId] || [];
+        const next = current.includes(value) ? current.filter(v => v !== value) : [...current, value];
+        const updated = { ...prev, [qId]: next };
+        if (next.length === 0) delete updated[qId];
+        return updated;
+    });
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#E5E5E6] dark:bg-[#131314] flex flex-col items-center justify-center">
+         <Loader2 className="w-12 h-12 text-blue-600 animate-spin mb-4" />
+         <p className="text-sm font-bold text-slate-500 uppercase tracking-widest">Wiring Analytics Engine...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+      return (
+        <div className="min-h-screen bg-[#E5E5E6] dark:bg-[#131314] flex flex-col items-center justify-center p-6">
+            <div className="bg-white dark:bg-slate-900 p-8 rounded-[32px] shadow-xl max-w-md text-center border border-slate-200 dark:border-slate-800 animate-in zoom-in-95">
+                <div className="w-16 h-16 bg-red-50 dark:bg-red-900/20 rounded-full flex items-center justify-center mx-auto mb-6 border border-red-100 dark:border-red-800">
+                    <AlertTriangle className="w-8 h-8 text-red-500" />
+                </div>
+                <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2">Data Load Failed</h3>
+                <p className="text-sm text-slate-500 dark:text-slate-400 mb-8 leading-relaxed">
+                    {error}
+                </p>
+                <div className="flex gap-4 justify-center">
+                    <button onClick={onBack} className="px-6 py-3 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl text-sm font-bold hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">
+                        Go Back
+                    </button>
+                    <button onClick={() => window.location.reload()} className="px-6 py-3 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700 shadow-lg shadow-blue-500/20 transition-colors flex items-center gap-2">
+                        <RefreshCcw className="w-4 h-4" /> Retry
+                    </button>
+                </div>
+            </div>
+        </div>
+      );
+  }
+
+  return (
+    <div className="min-h-screen bg-[#E5E5E6] dark:bg-[#131314] flex flex-col transition-colors">
+       {/* Dashboard Header */}
+       <header className="h-16 bg-white dark:bg-[#1e1f20] border-b dark:border-[#3c4043] flex items-center px-6 justify-between sticky top-0 z-30 shadow-sm">
+          <button onClick={onBack} className="flex items-center gap-2 text-sm font-bold text-blue-600 dark:text-blue-400 hover:opacity-80 transition-opacity">
+             <ChevronRight className="w-4 h-4 rotate-180" /> Back
+          </button>
+          
+          <div className="flex items-center gap-6">
+             <div className="flex items-center gap-2 bg-slate-100 dark:bg-[#131314] p-1 rounded-xl border dark:border-[#3c4043]">
+                <button onClick={() => setViewMode('chart')} className={`p-1.5 rounded-lg transition-all ${viewMode === 'chart' ? 'bg-white dark:bg-[#1e1f20] shadow text-blue-600' : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'}`}><BarChart2 className="w-4 h-4" /></button>
+                <button onClick={() => setViewMode('table')} className={`p-1.5 rounded-lg transition-all ${viewMode === 'table' ? 'bg-white dark:bg-[#1e1f20] shadow text-blue-600' : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'}`}><TableIcon className="w-4 h-4" /></button>
              </div>
-             
-             <div className="p-12 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-[48px] shadow-xl relative overflow-hidden transition-colors">
-                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-600 to-blue-400"></div>
-                <Loader2 className="w-12 h-12 text-blue-600 animate-spin mx-auto mb-6" />
-                <h4 className="font-bold text-xl text-slate-900 dark:text-white mb-2">Analyzing Project Data</h4>
-                <p className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed">Wiring <b>Q_{project.name}.csv</b> and <b>RawData_{project.name}.csv</b> to the Intelligence Front-end.</p>
+             <div className="relative hidden md:block">
+                <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input 
+                    type="text" placeholder="Search questions..." 
+                    className="pl-9 pr-4 py-1.5 bg-slate-50 dark:bg-[#131314] rounded-full text-xs outline-none border dark:border-[#3c4043] text-slate-900 dark:text-white w-48 focus:w-64 transition-all focus:ring-2 focus:ring-blue-500/20"
+                    value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
+                />
              </div>
           </div>
+       </header>
+
+       <div className="flex-1 overflow-y-auto p-6 md:p-10 max-w-5xl mx-auto w-full space-y-8 pb-20">
+          {/* Analytics Components from Hub 2 */}
+          <ToplineSummary 
+            surveyTitle={surveyTitle}
+            onTitleChange={setSurveyTitle}
+            year={project.year}
+            dateRange={project.metrics?.dateRange || project.dates}
+            respondentCount={filteredData.length}
+            totalCount={normalizedData.length}
+            avgDuration={project.metrics?.avgDuration || '0m 0s'}
+            avgEngagement={project.metrics?.engagement || '0Qs'}
+            questionCount={questions.length}
+            activeFilters={filters}
+          />
+
+          {displayedQuestions.length === 0 ? (
+              <div className="text-center py-12 text-slate-400 dark:text-slate-600">
+                  <p className="text-sm font-bold">No questions found matching your search.</p>
+              </div>
+          ) : (
+              displayedQuestions.map(q => (
+                <QuestionCard 
+                  key={q.id}
+                  question={q}
+                  data={filteredData}
+                  activeFilters={filters[q.id] || []}
+                  onToggleFilter={(val) => handleToggleFilter(q.id, val)}
+                  allQuestions={questions}
+                  defaultViewMode={viewMode}
+                />
+              ))
+          )}
        </div>
     </div>
   );

@@ -3,12 +3,12 @@ export interface ProjectMetrics {
   onsitePercent: number;
   dateRange: string;
   avgDuration: string;
-  engagement: string; // e.g. "26.6Qs"
-  surveyLength: string; // e.g. "52Questions"
+  engagement: string; 
+  surveyLength: string; 
   progressPercent: number;
-  totalRespondents: string; // New field: "n = 1626"
-  source: string; // New field: "Qualtrics Source" or "Digivey Source"
-  totalDays: string; // New field for "X days"
+  totalRespondents: string; 
+  source: string; 
+  totalDays: string; 
 }
 
 export interface Project {
@@ -16,7 +16,7 @@ export interface Project {
   name: string;
   venue: string;
   location: string;
-  country?: string; // New field
+  country?: string;
   dates: string;
   year: string;
   promoter: string;
@@ -24,16 +24,12 @@ export interface Project {
   ownerId?: string;
   createdAt?: number;
   updatedAt?: number;
-  // Storage URLs for synced CSVs
   schemaUrl?: string;
   responsesUrl?: string;
-  // File Meta
   schemaSize?: number;
   responsesSize?: number;
-  // Snapshot Analytics
   metrics?: ProjectMetrics;
-  prizeInfo?: string; // New field for AI-extracted prize description
-  // Source Linkage
+  prizeInfo?: string; 
   qualtricsSurveyId?: string;
   lastSyncedAt?: number;
 }
@@ -44,15 +40,53 @@ export interface UserProfile {
   fullName: string;
   companyName: string;
   createdAt: number;
-  // RBAC: 'all' = Admin, string[] = Guest with specific project access
   accessLevel: 'all' | string[];
-  lastVisit?: number; // Timestamp of user's previous session
+  lastVisit?: number; 
 }
 
+// Workspace Layout View Mode
 export type ViewMode = 'grid' | 'list';
 export type GroupBy = 'none' | 'year' | 'promoter' | 'country' | 'venue';
 
-// Declare globals injected by the environment
+// --- NEW TYPES ADDED FROM HUB 2 ENGINE ---
+
+/** * Renamed to DashboardViewMode to prevent conflict 
+ * with the workspace 'ViewMode' (grid/list) 
+ */
+export type DashboardViewMode = 'topline' | 'raw' | 'schema';
+
+export interface QuestionDef {
+  id: string; // e.g., "Q1"
+  text: string; // The full question text
+  type: string; // Single, Multi, Matrix, etc.
+  choices: string[]; 
+  rows?: string[]; // For Matrix questions
+  columns?: string[]; // For Matrix questions
+  block?: string; 
+}
+
+export interface SurveyResponse {
+  [key: string]: string; // Column ID -> Answer Value
+}
+
+export interface FilterState {
+  [questionId: string]: string[]; // Mapping for the interactive filtering system
+}
+
+export interface ApiSurvey {
+  id: string;
+  name: string;
+  isActive: boolean;
+  creationDate: string;
+  lastModifiedDate: string;
+}
+
+export interface LoadingStatus {
+  isActive: boolean;
+  message: string;
+}
+
+// Global window declarations
 declare global {
   interface Window {
     __firebase_config: string;
