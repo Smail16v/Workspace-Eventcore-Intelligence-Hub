@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { ChevronRight, Settings, Loader2, Trophy, BarChart2, Table as TableIcon, Search, Database, AlertTriangle, RefreshCcw } from 'lucide-react';
+import { ChevronRight, Settings, Loader2, Trophy, BarChart2, Table as TableIcon, Search, Database, AlertTriangle, RefreshCcw, Download } from 'lucide-react';
 import { Project, QuestionDef, SurveyResponse, FilterState } from '../types';
 import { parseSchemaCsv, parseResponsesCsv, normalizeData, filterData } from '../services/parser';
 import { QuestionCard } from './QuestionCard';
@@ -24,22 +24,28 @@ const ProjectDashboard: React.FC<ProjectDashboardProps> = ({ project, onBack, re
 
   // 1. Fetch and Parse Data on Mount
   useEffect(() => {
+    let isMounted = true;
+
     async function loadData() {
       if (!project.schemaUrl || !project.responsesUrl) {
-          setError("Project is missing data files. Please re-initialize via Edit.");
-          setLoading(false);
+          if (isMounted) {
+            setError("Project is missing data files. Please re-initialize via Edit.");
+            setLoading(false);
+          }
           return;
       }
       
       try {
-        setLoading(true);
-        setError(null);
+        if (isMounted) {
+            setLoading(true);
+            setError(null);
+        }
 
         // Fetch files from Firebase Storage URLs
         // Note: 'fetch' requires CORS configuration on the Firebase Storage bucket.
         const [schemaRes, responsesRes] = await Promise.all([
-          fetch(project.schemaUrl),
-          fetch(project.responsesUrl)
+          fetch(project.schemaUrl, { mode: 'cors' }),
+          fetch(project.responsesUrl, { mode: 'cors' })
         ]);
 
         if (!schemaRes.ok) throw new Error(`Failed to fetch schema (Status: ${schemaRes.status})`);
@@ -58,26 +64,64 @@ const ProjectDashboard: React.FC<ProjectDashboardProps> = ({ project, onBack, re
             console.warn("Schema parsed but 0 questions found.");
         }
 
-        setQuestions(qs);
-        setNormalizedData(normalizeData(rawRs, qs));
+        if (isMounted) {
+            setQuestions(qs);
+            setNormalizedData(normalizeData(rawRs, qs));
+        }
       } catch (e: any) {
         console.error("Failed to load project data", e);
-        if (e.name === 'TypeError' && e.message === 'Failed to fetch') {
-            setError("Network Error: Could not fetch data. This is likely a CORS issue on the Storage Bucket.");
-        } else {
-            setError(e.message || "Failed to load project data");
+        if (isMounted) {
+            if (e.name === 'TypeError' && e.message === 'Failed to fetch') {
+                setError("Network Error: Could not fetch data. This is almost certainly a CORS issue with Firebase Storage. Please see instructions below.");
+            } else {
+                setError(e.message || "Failed to load project data");
+            }
         }
       } finally {
-        setLoading(false);
+        if (isMounted) setLoading(false);
       }
     }
     loadData();
-  }, [project]);
+
+    return () => { isMounted = false; };
+  }, [project.id, project.schemaUrl, project.responsesUrl]); // Dependency optimization
 
   // 2. Derive Filtered Data
   const filteredData = useMemo(() => 
     filterData(normalizedData, questions, filters), 
   [normalizedData, questions, filters]);
+
+  // 3. Compute Live Metrics from Filtered Data
+  const computedMetrics = useMemo(() => {
+    if (filteredData.length === 0) return null;
+
+    // Calculate Average Duration from filtered set
+    let totalSeconds = 0;
+    let durationCount = 0;
+    filteredData.forEach(r => {
+        const dStr = r['Duration (in seconds)'] || r['Duration'];
+        const d = parseFloat(dStr);
+        if (!isNaN(d)) { totalSeconds += d; durationCount++; }
+    });
+    const avgSec = durationCount ? totalSeconds / durationCount : 0;
+    const durationStr = `${Math.floor(avgSec / 60)}m ${Math.round(avgSec % 60)}s`;
+
+    // Calculate Live Engagement (Average Questions Answered)
+    let totalAns = 0;
+    filteredData.forEach(r => {
+        const uniqueQs = new Set(
+            Object.keys(r).filter(k => (k.startsWith('Q') || k.includes('_')) && r[k] && r[k] !== "")
+        );
+        totalAns += uniqueQs.size;
+    });
+    
+    const engagementStr = (totalAns / filteredData.length).toFixed(1) + 'Qs';
+
+    return {
+        avgDuration: durationStr,
+        avgEngagement: engagementStr
+    };
+  }, [filteredData]);
 
   const displayedQuestions = useMemo(() => {
     if (!searchQuery) return questions;
@@ -109,21 +153,35 @@ const ProjectDashboard: React.FC<ProjectDashboardProps> = ({ project, onBack, re
   if (error) {
       return (
         <div className="min-h-screen bg-[#E5E5E6] dark:bg-[#131314] flex flex-col items-center justify-center p-6">
-            <div className="bg-white dark:bg-slate-900 p-8 rounded-[32px] shadow-xl max-w-md text-center border border-slate-200 dark:border-slate-800 animate-in zoom-in-95">
+            <div className="bg-white dark:bg-slate-900 p-8 rounded-[32px] shadow-xl max-w-lg text-center border border-slate-200 dark:border-slate-800 animate-in zoom-in-95">
                 <div className="w-16 h-16 bg-red-50 dark:bg-red-900/20 rounded-full flex items-center justify-center mx-auto mb-6 border border-red-100 dark:border-red-800">
                     <AlertTriangle className="w-8 h-8 text-red-500" />
                 </div>
                 <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2">Data Load Failed</h3>
-                <p className="text-sm text-slate-500 dark:text-slate-400 mb-8 leading-relaxed">
+                <p className="text-sm text-slate-500 dark:text-slate-400 mb-6 leading-relaxed">
                     {error}
                 </p>
-                <div className="flex gap-4 justify-center">
+                
+                {error.includes("CORS") && (
+                    <div className="bg-slate-50 dark:bg-slate-800 p-4 rounded-xl text-left mb-6 text-xs text-slate-600 dark:text-slate-300 font-mono overflow-auto max-h-32 border border-slate-200 dark:border-slate-700">
+                        <p className="font-bold mb-2 text-slate-900 dark:text-white">Quick Fix: Add CORS config to Google Cloud</p>
+                        <p>1. Create cors.json: <br/>[&#123;"origin": ["*"], "method": ["GET"], "maxAgeSeconds": 3600&#125;]</p>
+                        <p className="mt-2">2. Run: gsutil cors set cors.json gs://eventcore-intelligence-hub.firebasestorage.app</p>
+                    </div>
+                )}
+
+                <div className="flex flex-wrap gap-4 justify-center">
                     <button onClick={onBack} className="px-6 py-3 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl text-sm font-bold hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">
                         Go Back
                     </button>
                     <button onClick={() => window.location.reload()} className="px-6 py-3 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700 shadow-lg shadow-blue-500/20 transition-colors flex items-center gap-2">
                         <RefreshCcw className="w-4 h-4" /> Retry
                     </button>
+                    {project.schemaUrl && (
+                        <a href={project.schemaUrl} target="_blank" rel="noopener noreferrer" className="px-6 py-3 bg-slate-50 dark:bg-slate-800 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800 rounded-xl text-sm font-bold hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors flex items-center gap-2">
+                            <Download className="w-4 h-4" /> Test Schema Link
+                        </a>
+                    )}
                 </div>
             </div>
         </div>
@@ -163,8 +221,9 @@ const ProjectDashboard: React.FC<ProjectDashboardProps> = ({ project, onBack, re
             dateRange={project.metrics?.dateRange || project.dates}
             respondentCount={filteredData.length}
             totalCount={normalizedData.length}
-            avgDuration={project.metrics?.avgDuration || '0m 0s'}
-            avgEngagement={project.metrics?.engagement || '0Qs'}
+            // Use Computed Live Metrics if available, fallback to static project metrics
+            avgDuration={computedMetrics?.avgDuration || project.metrics?.avgDuration || '0m 0s'}
+            avgEngagement={computedMetrics?.avgEngagement || project.metrics?.engagement || '0Qs'}
             questionCount={questions.length}
             activeFilters={filters}
           />

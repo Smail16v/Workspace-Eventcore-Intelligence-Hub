@@ -1,3 +1,4 @@
+
 # Firebase Security Rules
 
 **IMPORTANT: You must publish these rules in your Firebase Console to fix the "Missing or insufficient permissions" error.**
@@ -69,4 +70,26 @@ service firebase.storage {
     }
   }
 }
+```
+
+## CORS Configuration (Critical for "Failed to fetch")
+
+If you see "Failed to fetch" errors when loading project data, you must configure CORS on your storage bucket.
+
+1. Create a file named `cors.json` on your computer:
+```json
+[
+  {
+    "origin": ["*"],
+    "method": ["GET"],
+    "maxAgeSeconds": 3600
+  }
+]
+```
+
+2. Install `gsutil` (part of Google Cloud SDK) or use the Google Cloud Console Cloud Shell.
+
+3. Run the following command:
+```bash
+gsutil cors set cors.json gs://eventcore-intelligence-hub.firebasestorage.app
 ```

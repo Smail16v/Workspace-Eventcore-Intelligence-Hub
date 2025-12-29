@@ -1,8 +1,20 @@
-import { GoogleGenAI, Type } from "@google/genai";
+
+import { GoogleGenAI } from "@google/genai";
 import { Project } from "../types";
 
-// Initialize AI client only if API key is present to avoid runtime crashes
-const apiKey = process.env.API_KEY;
+// Initialize AI client safely
+const getApiKey = () => {
+  try {
+    if (typeof process !== 'undefined' && process.env?.API_KEY) return process.env.API_KEY;
+    // @ts-ignore
+    if (typeof import.meta !== 'undefined' && import.meta.env?.VITE_GEMINI_API_KEY) return import.meta.env.VITE_GEMINI_API_KEY;
+  } catch (e) {
+    return '';
+  }
+  return '';
+};
+
+const apiKey = getApiKey();
 const ai = apiKey ? new GoogleGenAI({ apiKey }) : null;
 
 export async function analyzeEventContext(textOrUrl: string): Promise<Partial<Project>> {
@@ -47,8 +59,6 @@ export async function analyzeEventContext(textOrUrl: string): Promise<Partial<Pr
       contents: { parts: [{ text: prompt }] },
       config: {
         tools: [{ googleSearch: {} }], // Enable Google Search Grounding
-        // Note: responseMimeType: 'application/json' is NOT supported when using tools.
-        // We rely on the prompt to generate JSON.
       }
     });
 
@@ -121,7 +131,7 @@ export async function extractPrizeInfo(schemaRows: any[]): Promise<string> {
 
   try {
     const result = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview', 
+        model: 'gemini-2.5-flash-preview-09-2025', 
         contents: prompt
     });
     return result.text ? result.text.trim().replace(/[".]/g, '') : "No prize";
