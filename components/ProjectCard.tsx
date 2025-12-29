@@ -47,15 +47,15 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ project, viewMode, onSelect, 
 
   if (viewMode === 'list') {
     return (
-      <div onClick={onSelect} className="group flex items-center gap-4 p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl hover:border-blue-500 dark:hover:border-blue-500 hover:shadow-lg transition-all cursor-pointer relative overflow-hidden">
+      <div onClick={onSelect} className="group flex items-center gap-4 p-4 bg-white dark:bg-[#1e1f20] border border-slate-200 dark:border-[#3c4043] rounded-2xl hover:border-blue-500 dark:hover:border-blue-500 hover:shadow-lg transition-all cursor-pointer relative overflow-hidden">
         {showBadgeList && (
             <div className="absolute top-0 left-0 w-1 h-full bg-[#FFD000] animate-pulse"></div>
         )}
         
-        <div className="w-12 h-12 bg-slate-50 dark:bg-slate-800 rounded-xl border dark:border-slate-700 flex items-center justify-center p-2 group-hover:bg-blue-50 dark:group-hover:bg-blue-900/30 transition-colors shrink-0 relative">
+        <div className="w-12 h-12 bg-slate-50 dark:bg-[#131314] rounded-xl border dark:border-[#3c4043] flex items-center justify-center p-2 group-hover:bg-blue-50 dark:group-hover:bg-blue-900/30 transition-colors shrink-0 relative">
            <img src={project.logoUrl || "https://picsum.photos/150/150"} alt="" className="max-h-full max-w-full object-contain" />
            {showBadgeList && (
-              <div className="absolute -top-1 -right-1 bg-[#FFD000] text-slate-900 p-0.5 rounded-full border-2 border-white dark:border-slate-900">
+              <div className="absolute -top-1 -right-1 bg-[#FFD000] text-slate-900 p-0.5 rounded-full border-2 border-white dark:border-[#1e1f20]">
                   <Sparkles className="w-2.5 h-2.5 fill-black" />
               </div>
            )}
@@ -65,7 +65,7 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ project, viewMode, onSelect, 
            {/* Info Section */}
            <div className="md:col-span-4 min-w-0">
              <div className="flex items-center gap-2">
-                 <h4 className="font-bold text-slate-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors truncate">{project.name}</h4>
+                 <h4 className="font-bold text-slate-900 dark:text-[#e3e3e3] group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors truncate">{project.name}</h4>
                  {showBadgeList && (
                     <div className="flex items-center gap-1.5 px-3 py-1 bg-[#FFD000] text-black text-[10px] font-black uppercase rounded-lg shadow-sm ml-2">
                         <Sparkles className="w-3 h-3 fill-black" />
@@ -73,18 +73,18 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ project, viewMode, onSelect, 
                     </div>
                  )}
              </div>
-             <div className="flex items-center gap-3 mt-1 text-[10px] text-slate-500 dark:text-slate-400 font-medium">
+             <div className="flex items-center gap-3 mt-1 text-[10px] text-slate-500 dark:text-[#c4c7c5] font-medium">
                <span className="flex items-center gap-1 truncate"><Building className="w-3 h-3" /> {project.venue}</span>
                <span className="flex items-center gap-1 truncate"><Shield className="w-3 h-3" /> {project.promoter}</span>
              </div>
            </div>
 
            {/* Metrics Section (Desktop) */}
-           <div className="hidden md:flex md:col-span-6 items-center gap-6 justify-start text-[10px] text-slate-500 dark:text-slate-400 font-medium">
+           <div className="hidden md:flex md:col-span-6 items-center gap-6 justify-start text-[10px] text-slate-500 dark:text-[#c4c7c5] font-medium">
               {metrics ? (
                 <>
                   <div className="flex flex-col gap-1 min-w-[80px]">
-                      <span className="flex items-center gap-1.5 font-bold text-slate-700 dark:text-slate-300"><Users className="w-3 h-3 text-blue-500" /> {metrics.totalRespondents}</span>
+                      <span className="flex items-center gap-1.5 font-bold text-slate-700 dark:text-[#e3e3e3]"><Users className="w-3 h-3 text-blue-500" /> {metrics.totalRespondents}</span>
                       <span className="flex items-center gap-1.5"><Clock className="w-3 h-3 text-blue-500" /> {metrics.avgDuration}</span>
                   </div>
                   <div className="flex flex-col gap-1 min-w-[80px]">
@@ -106,15 +106,15 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ project, viewMode, onSelect, 
            {/* Date Section */}
            <div className="hidden md:block md:col-span-2 text-right">
              <p className="text-xs font-bold text-blue-600 dark:text-blue-400">{project.dates}</p>
-             <p className="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-tighter">{project.year}</p>
+             <p className="text-[10px] text-slate-400 dark:text-[#8e918f] font-bold uppercase tracking-tighter">{project.year}</p>
            </div>
         </div>
 
-        <div className="flex items-center gap-2 pl-2 border-l border-slate-100 dark:border-slate-800">
+        <div className="flex items-center gap-2 pl-2 border-l border-slate-100 dark:border-[#3c4043]">
             {!readOnly && (
-                <button onClick={onEdit} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors" title="Edit Hub Settings"><Pencil className="w-4 h-4" /></button>
+                <button onClick={onEdit} className="p-2 hover:bg-slate-100 dark:hover:bg-[#131314] rounded-lg text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors" title="Edit Hub Settings"><Pencil className="w-4 h-4" /></button>
             )}
-            <ChevronRight className="w-5 h-5 text-slate-300 dark:text-slate-600 group-hover:text-blue-500 dark:group-hover:text-blue-400 group-hover:translate-x-1 transition-all" />
+            <ChevronRight className="w-5 h-5 text-slate-300 dark:text-[#3c4043] group-hover:text-blue-500 dark:group-hover:text-blue-400 group-hover:translate-x-1 transition-all" />
         </div>
       </div>
     );
@@ -122,7 +122,7 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ project, viewMode, onSelect, 
 
   // GRID VIEW
   return (
-    <div onClick={onSelect} className="group bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-[28px] overflow-hidden hover:shadow-2xl hover:shadow-blue-500/10 hover:border-blue-500 dark:hover:border-blue-500 transition-all cursor-pointer flex flex-col h-full relative">
+    <div onClick={onSelect} className="group bg-white dark:bg-[#1e1f20] border border-slate-200 dark:border-[#3c4043] rounded-[28px] overflow-hidden hover:shadow-2xl hover:shadow-blue-500/10 hover:border-blue-500 dark:hover:border-blue-500 transition-all cursor-pointer flex flex-col h-full relative">
       
       {/* Status Tags */}
       {isNew ? (
@@ -135,12 +135,12 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ project, viewMode, onSelect, 
             <div className="bg-[#FFD000] p-1 rounded-md shadow-sm">
                <Sparkles className="w-3 h-3 fill-black" />
             </div>
-            <span className="text-[10px] italic text-slate-400 dark:text-slate-500 font-medium">Updated {updateTime}</span>
+            <span className="text-[10px] italic text-slate-400 dark:text-[#8e918f] font-medium">Updated {updateTime}</span>
          </div>
       ) : null}
 
       {/* Improved Logo Header: Ensures Logo fits entirely */}
-      <div className="h-44 bg-slate-50 dark:bg-slate-800 relative flex items-center justify-center p-6 transition-colors border-b border-slate-100 dark:border-slate-800">
+      <div className="h-44 bg-slate-50 dark:bg-[#131314] relative flex items-center justify-center p-6 transition-colors border-b border-slate-100 dark:border-[#3c4043]">
          <img 
            src={project.logoUrl || "https://picsum.photos/150/150"} 
            alt={project.name} 
@@ -148,7 +148,7 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ project, viewMode, onSelect, 
          />
          {!readOnly && (
             <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity">
-                <button onClick={onEdit} className="p-2.5 bg-white dark:bg-slate-700 rounded-xl shadow-lg text-slate-400 hover:text-blue-600 transition-all border border-slate-100 dark:border-slate-600">
+                <button onClick={onEdit} className="p-2.5 bg-white dark:bg-[#1e1f20] rounded-xl shadow-lg text-slate-400 hover:text-blue-600 transition-all border border-slate-100 dark:border-[#3c4043]">
                     <Pencil className="w-4 h-4" />
                 </button>
             </div>
@@ -157,18 +157,18 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ project, viewMode, onSelect, 
 
       <div className="p-6 flex flex-col flex-1 gap-4">
          {/* Title */}
-         <h3 className="font-bold text-xl text-slate-900 dark:text-white leading-tight group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors line-clamp-1" title={project.name}>{project.name}</h3>
+         <h3 className="font-bold text-xl text-slate-900 dark:text-[#e3e3e3] leading-tight group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors line-clamp-1" title={project.name}>{project.name}</h3>
          
          {metrics ? (
-           <div className="bg-slate-50 dark:bg-slate-800/50 rounded-2xl p-4 flex flex-col gap-4 border border-slate-100 dark:border-slate-800/50">
+           <div className="bg-slate-50 dark:bg-[#131314] rounded-2xl p-4 flex flex-col gap-4 border border-slate-100 dark:border-[#3c4043]">
               
               {/* Row 1: Active Window and Day Count */}
-              <div className="flex flex-col gap-2 pb-3 border-b border-slate-200 dark:border-slate-700/50">
-                  <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-200">
+              <div className="flex flex-col gap-2 pb-3 border-b border-slate-200 dark:border-[#3c4043]">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700 dark:text-[#c4c7c5]">
                      <Users className="w-4 h-4 text-blue-500" /> {metrics.totalRespondents}
                   </div>
                   <div className="flex items-center justify-between">
-                     <div className="flex items-center gap-1.5 text-[10px] font-medium text-slate-500 dark:text-slate-400">
+                     <div className="flex items-center gap-1.5 text-[10px] font-medium text-slate-500 dark:text-[#8e918f]">
                         <CalendarRange className="w-3.5 h-3.5 text-blue-500" /> {metrics.dateRange || '-'}
                      </div>
                      <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400">
@@ -179,24 +179,24 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ project, viewMode, onSelect, 
 
               {/* Row 2: Performance Stats Grid (2 columns on mobile, 3 on desktop) */}
               <div className="grid grid-cols-2 md:grid-cols-3 gap-y-3 gap-x-2">
-                  <div className="flex flex-col items-start md:items-center gap-1 text-[10px] text-slate-600 dark:text-slate-400">
+                  <div className="flex flex-col items-start md:items-center gap-1 text-[10px] text-slate-600 dark:text-[#c4c7c5]">
                      <Clock className="w-3.5 h-3.5 text-blue-500" /> {metrics.avgDuration}
                   </div>
-                  <div className="flex flex-col items-start md:items-center gap-1 text-[10px] text-slate-600 dark:text-slate-400">
+                  <div className="flex flex-col items-start md:items-center gap-1 text-[10px] text-slate-600 dark:text-[#c4c7c5]">
                      <Activity className="w-3.5 h-3.5 text-blue-500" /> {metrics.engagement}
                   </div>
-                  <div className="flex flex-col items-start md:items-center gap-1 text-[10px] text-slate-600 dark:text-slate-400 col-span-2 md:col-span-1 border-t md:border-t-0 pt-2 md:pt-0 border-slate-200 dark:border-slate-700/50">
+                  <div className="flex flex-col items-start md:items-center gap-1 text-[10px] text-slate-600 dark:text-[#c4c7c5] col-span-2 md:col-span-1 border-t md:border-t-0 pt-2 md:pt-0 border-slate-200 dark:border-[#3c4043]">
                      <FileText className="w-3.5 h-3.5 text-blue-500" /> {metrics.surveyLength}
                   </div>
               </div>
 
               {/* Row 3: Online/On-site Progress Bar */}
-              <div className="pt-2 border-t border-slate-200 dark:border-slate-700/50">
+              <div className="pt-2 border-t border-slate-200 dark:border-[#3c4043]">
                  <div className="flex justify-between text-[9px] font-bold uppercase text-slate-400 mb-1.5">
                     <span className="flex items-center gap-1"><Globe className="w-2.5 h-2.5 text-blue-500" /> {metrics.onlinePercent}% Online</span>
                     <span className="flex items-center gap-1"><Smartphone className="w-2.5 h-2.5 text-blue-500" /> {metrics.onsitePercent}% On-site</span>
                  </div>
-                 <div className="h-1 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden flex">
+                 <div className="h-1 bg-slate-200 dark:bg-[#3c4043] rounded-full overflow-hidden flex">
                     <div className="bg-blue-500 h-full" style={{ width: `${metrics.onlinePercent}%` }}></div>
                     <div className="bg-emerald-500 h-full" style={{ width: `${metrics.onsitePercent}%` }}></div>
                  </div>
@@ -204,9 +204,9 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ project, viewMode, onSelect, 
 
               {/* Row 4: Prize (No background, blue icon) */}
               {prizeInfo && prizeInfo !== "No prize" && prizeInfo !== "No prize details found." && (
-                <div className="flex items-start gap-2 pt-2 border-t border-slate-200 dark:border-slate-700/50">
+                <div className="flex items-start gap-2 pt-2 border-t border-slate-200 dark:border-[#3c4043]">
                   <Trophy className="w-3.5 h-3.5 text-blue-500 shrink-0 mt-0.5" />
-                  <p className="text-[10px] font-normal text-slate-600 dark:text-slate-400 leading-tight">
+                  <p className="text-[10px] font-normal text-slate-600 dark:text-[#c4c7c5] leading-tight">
                      {prizeInfo}
                   </p>
                 </div>
@@ -220,13 +220,13 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ project, viewMode, onSelect, 
          )}
 
          {/* SOURCE FOOTER WITH LOGO */}
-         <div className="mt-auto pt-4 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
+         <div className="mt-auto pt-4 border-t border-slate-100 dark:border-[#3c4043] flex items-center justify-between">
             <div className="flex items-center gap-2">
                {metrics?.source === 'Qualtrics Source' ? (
                  <img src="https://firebasestorage.googleapis.com/v0/b/eventcore-intelligence-hub.firebasestorage.app/o/Qualtrics%20Logo.png?alt=media&token=55316618-b3b9-4806-8d46-6d7f4a970837" 
                       alt="Qualtrics" className="h-4 w-auto opacity-70 grayscale group-hover:grayscale-0 transition-all" />
                ) : (
-                 <span className="text-[9px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500">{metrics?.source || 'Digivey Source'}</span>
+                 <span className="text-[9px] font-black uppercase tracking-widest text-slate-400 dark:text-[#8e918f]">{metrics?.source || 'Digivey Source'}</span>
                )}
             </div>
             <div className="flex items-center gap-1 text-[10px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-all transform translate-x-2 group-hover:translate-x-0">

@@ -524,7 +524,7 @@ export default function App() {
   // But if auth is initialized and we have no user, the modal should be open (handled in render).
   if (loading && user) {
     return (
-      <div className="h-screen w-full flex items-center justify-center bg-slate-50 dark:bg-slate-900 transition-colors">
+      <div className="h-screen w-full flex items-center justify-center bg-slate-50 dark:bg-[#131314] transition-colors">
         <Loader2 className="w-10 h-10 text-blue-600 animate-spin" />
       </div>
     );
@@ -541,7 +541,7 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-[#E5E5E6] dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans flex flex-col transition-colors duration-300">
+    <div className="min-h-screen bg-[#E5E5E6] dark:bg-[#131314] text-slate-900 dark:text-[#e3e3e3] font-sans flex flex-col transition-colors duration-300">
       <Navbar 
         user={user} 
         userProfile={userProfile}
@@ -555,16 +555,16 @@ export default function App() {
         {/* Header Section */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-12">
           <div>
-            <h2 className="text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">Project Workspace</h2>
+            <h2 className="text-3xl font-extrabold text-slate-900 dark:text-[#e3e3e3] tracking-tight">Project Workspace</h2>
             <div className="flex items-center gap-6 mt-4 animate-in fade-in slide-in-from-left-2 duration-500">
                 <div>
-                    <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1">Total Responses</p>
+                    <p className="text-[10px] font-bold text-slate-400 dark:text-[#8e918f] uppercase tracking-widest mb-1">Total Responses</p>
                     <p className="text-2xl font-black text-blue-600 dark:text-blue-400 tracking-tight leading-none">{totalResponses.toLocaleString()}</p>
                 </div>
-                <div className="w-px h-8 bg-slate-200 dark:bg-slate-800"></div>
+                <div className="w-px h-8 bg-slate-200 dark:bg-[#3c4043]"></div>
                 <div>
-                    <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1">Total Projects</p>
-                    <p className="text-2xl font-black text-slate-900 dark:text-white tracking-tight leading-none">{filteredProjects.length}</p>
+                    <p className="text-[10px] font-bold text-slate-400 dark:text-[#8e918f] uppercase tracking-widest mb-1">Total Projects</p>
+                    <p className="text-2xl font-black text-slate-900 dark:text-[#e3e3e3] tracking-tight leading-none">{filteredProjects.length}</p>
                 </div>
             </div>
           </div>
@@ -595,7 +595,7 @@ export default function App() {
                     disabled={isSyncing}
                     className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm transition-all active:scale-95 shadow-lg ${
                         isSyncing 
-                        ? 'bg-slate-100 dark:bg-slate-800 text-slate-400 cursor-not-allowed' 
+                        ? 'bg-slate-100 dark:bg-[#2d2e2f] text-slate-400 cursor-not-allowed' 
                         : 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 shadow-emerald-500/10 border border-emerald-100 dark:border-emerald-800'
                     }`}
                 >
@@ -627,21 +627,21 @@ export default function App() {
         </div>
 
         {/* Controls Section */}
-        <div className="flex items-center justify-between mb-8 bg-white dark:bg-slate-900 p-2 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm transition-colors">
+        <div className="flex items-center justify-between mb-8 bg-white dark:bg-[#1e1f20] p-2 rounded-2xl border border-slate-200 dark:border-[#3c4043] shadow-sm transition-colors">
            {/* Search Input Moved Here */}
-           <div className="relative group pl-2 pr-4 border-r border-slate-100 dark:border-slate-800 mr-2">
+           <div className="relative group pl-2 pr-4 border-r border-slate-100 dark:border-[#3c4043] mr-2">
               <Search className="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-600 transition-colors" />
               <input 
                 type="text" 
                 placeholder="Search projects..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-9 pr-4 py-2 bg-transparent border-none text-sm outline-none w-48 md:w-64 transition-all dark:text-white placeholder-slate-400"
+                className="pl-9 pr-4 py-2 bg-transparent border-none text-sm outline-none w-48 md:w-64 transition-all dark:text-[#e3e3e3] placeholder-slate-400 dark:placeholder-[#8e918f]"
               />
            </div>
 
            <div className="flex items-center gap-2 overflow-x-auto no-scrollbar flex-1">
-              <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase flex items-center gap-2 ml-2 mr-3 tracking-widest whitespace-nowrap">
+              <span className="text-[10px] font-bold text-slate-400 dark:text-[#8e918f] uppercase flex items-center gap-2 ml-2 mr-3 tracking-widest whitespace-nowrap">
                  <Filter className="w-3 h-3" /> Group View
               </span>
               <div className="flex gap-1">
@@ -649,7 +649,7 @@ export default function App() {
                    <button 
                      key={opt}
                      onClick={() => setGroupBy(opt)}
-                     className={`px-3 py-1.5 rounded-lg text-xs font-bold capitalize transition-all whitespace-nowrap ${groupBy === opt ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'}`}
+                     className={`px-3 py-1.5 rounded-lg text-xs font-bold capitalize transition-all whitespace-nowrap ${groupBy === opt ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400' : 'text-slate-500 dark:text-[#c4c7c5] hover:bg-slate-50 dark:hover:bg-[#131314]'}`}
                    >
                      {opt}
                    </button>
@@ -657,9 +657,9 @@ export default function App() {
               </div>
            </div>
 
-           <div className="flex items-center gap-1 pl-4 border-l border-slate-100 dark:border-slate-800 ml-2">
-             <button onClick={() => setViewMode('grid')} className={`p-2 rounded-lg transition-all ${viewMode === 'grid' ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400' : 'text-slate-400 dark:text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800'}`} title="Grid View"><LayoutGrid className="w-4 h-4" /></button>
-             <button onClick={() => setViewMode('list')} className={`p-2 rounded-lg transition-all ${viewMode === 'list' ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400' : 'text-slate-400 dark:text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800'}`} title="List View"><List className="w-4 h-4" /></button>
+           <div className="flex items-center gap-1 pl-4 border-l border-slate-100 dark:border-[#3c4043] ml-2">
+             <button onClick={() => setViewMode('grid')} className={`p-2 rounded-lg transition-all ${viewMode === 'grid' ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400' : 'text-slate-400 dark:text-[#c4c7c5] hover:bg-slate-50 dark:hover:bg-[#131314]'}`} title="Grid View"><LayoutGrid className="w-4 h-4" /></button>
+             <button onClick={() => setViewMode('list')} className={`p-2 rounded-lg transition-all ${viewMode === 'list' ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400' : 'text-slate-400 dark:text-[#c4c7c5] hover:bg-slate-50 dark:hover:bg-[#131314]'}`} title="List View"><List className="w-4 h-4" /></button>
            </div>
         </div>
 
@@ -687,9 +687,9 @@ export default function App() {
             return (
             <div key={group} className="mb-12 animate-in fade-in slide-in-from-top-4 duration-500">
                <div className="flex items-center gap-4 mb-6">
-                  <h3 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest leading-none">{group}</h3>
-                  <div className="flex-1 h-px bg-slate-200 dark:bg-slate-800"></div>
-                  <span className="bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 px-2 py-0.5 rounded text-[10px] font-bold tracking-tight">{projectsList.length} Projects</span>
+                  <h3 className="text-xs font-bold text-slate-400 dark:text-[#8e918f] uppercase tracking-widest leading-none">{group}</h3>
+                  <div className="flex-1 h-px bg-slate-200 dark:bg-[#3c4043]"></div>
+                  <span className="bg-slate-100 dark:bg-[#1e1f20] text-slate-500 dark:text-[#c4c7c5] px-2 py-0.5 rounded text-[10px] font-bold tracking-tight">{projectsList.length} Projects</span>
                </div>
                
                <div className={viewMode === 'grid' ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8" : "space-y-3"}>
