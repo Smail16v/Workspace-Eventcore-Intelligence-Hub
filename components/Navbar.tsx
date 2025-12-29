@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { User, LogOut, LogIn, Sun, Moon } from 'lucide-react';
 import { User as FirebaseUser } from '../services/firebase';
@@ -19,18 +20,18 @@ const Navbar: React.FC<NavbarProps> = ({ user, userProfile, onAuthClick, onProfi
   const displayCompany = userProfile?.companyName || 'Eventcore Member';
 
   return (
-    <nav className="h-16 md:h-20 bg-white/95 backdrop-blur dark:bg-[#1e1f20]/95 border-b border-slate-200 dark:border-[#3c4043] sticky top-0 z-30 pt-safe transition-colors">
+    <nav className="h-16 bg-white dark:bg-[#1e1f20] border-b border-slate-200 dark:border-[#3c4043] sticky top-0 z-30 transition-colors duration-300">
       <div className="max-w-7xl mx-auto w-full px-6 md:px-10 h-full flex items-center justify-between">
-        <div className="flex items-center gap-2 md:gap-4">
+        <div className="flex items-center gap-3">
           <img 
             src="https://firebasestorage.googleapis.com/v0/b/eventcore-intelligence-hub.firebasestorage.app/o/Eventcore-logo.svg?alt=media&token=68dbed9c-d471-41fe-8c2a-2443ba78226e" 
             alt="Eventcore" 
-            className="h-8 md:h-10 w-auto object-contain" 
+            className="h-8 w-auto object-contain" 
           />
-          <div className="h-8 w-px bg-slate-200 dark:bg-[#3c4043] mx-1 hidden sm:block"></div>
+          <div className="h-6 w-px bg-slate-200 dark:bg-[#3c4043] mx-1 hidden sm:block"></div>
           <div>
-            <h1 className="font-bold text-sm md:text-lg tracking-tight text-slate-900 dark:text-[#e3e3e3]">Intelligence Hub</h1>
-            <p className="text-[8px] md:text-[10px] text-slate-400 dark:text-[#8e918f] uppercase font-bold tracking-widest leading-none">Workspace</p>
+            <h1 className="font-bold text-lg text-slate-900 dark:text-[#e3e3e3] leading-none">Intelligence Hub</h1>
+            <p className="text-[10px] text-slate-400 dark:text-[#8e918f] uppercase font-bold tracking-widest leading-none mt-0.5">Workspace</p>
           </div>
         </div>
 

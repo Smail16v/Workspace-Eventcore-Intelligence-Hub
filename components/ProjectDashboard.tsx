@@ -29,11 +29,14 @@ const ProjectDashboard: React.FC<ProjectDashboardProps> = ({ project, onBack, re
     const MAX_RETRIES = 2;
 
     async function fetchWithRetry(url: string, label: string) {
+        // Cache Busting: Append timestamp to ensure fresh fetch
+        const safeUrl = url + (url.includes('?') ? '&' : '?') + 't=' + new Date().getTime();
+
         for (let i = 0; i <= MAX_RETRIES; i++) {
             try {
                 // cache: 'no-store' ensures we don't hit stale CORS headers
                 // credentials: 'omit' prevents sending cookies which can trigger strict CORS checks
-                const res = await fetch(url, { 
+                const res = await fetch(safeUrl, { 
                     mode: 'cors', 
                     cache: 'no-store',
                     credentials: 'omit' 

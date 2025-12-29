@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
   LayoutGrid, 
@@ -570,8 +571,6 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-3">
-             {/* Search Removed from here */}
-
             {/* Last Sync Info */}
             {syncResult && (
                 <div className="hidden lg:flex flex-col items-end mr-2 text-[10px] font-bold text-slate-400 uppercase tracking-tight animate-in fade-in slide-in-from-top-1">
@@ -626,40 +625,43 @@ export default function App() {
           </div>
         </div>
 
-        {/* Controls Section */}
-        <div className="flex items-center justify-between mb-8 bg-white dark:bg-[#1e1f20] p-2 rounded-2xl border border-slate-200 dark:border-[#3c4043] shadow-sm transition-colors">
-           {/* Search Input Moved Here */}
-           <div className="relative group pl-2 pr-4 border-r border-slate-100 dark:border-[#3c4043] mr-2">
-              <Search className="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-600 transition-colors" />
+        {/* Controls Section (Updated to Pill Style) */}
+        <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between mb-8 gap-4">
+           {/* Standalone Pill Search Bar */}
+           <div className="relative group flex-1 max-w-xl">
+              <Search className="w-4 h-4 absolute left-5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-500 transition-colors" />
               <input 
                 type="text" 
                 placeholder="Search projects..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-9 pr-4 py-2 bg-transparent border-none text-sm outline-none w-48 md:w-64 transition-all dark:text-[#e3e3e3] placeholder-slate-400 dark:placeholder-[#8e918f]"
+                className="w-full pl-12 pr-6 py-3.5 bg-white dark:bg-[#1e1f20] border border-slate-200 dark:border-[#3c4043] rounded-full text-sm outline-none shadow-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all dark:text-white placeholder-slate-400 dark:placeholder-[#8e918f]"
               />
            </div>
 
-           <div className="flex items-center gap-2 overflow-x-auto no-scrollbar flex-1">
-              <span className="text-[10px] font-bold text-slate-400 dark:text-[#8e918f] uppercase flex items-center gap-2 ml-2 mr-3 tracking-widest whitespace-nowrap">
-                 <Filter className="w-3 h-3" /> Group View
-              </span>
-              <div className="flex gap-1">
+           {/* Re-styled Filter Group */}
+           <div className="flex items-center gap-1 p-1 bg-white dark:bg-[#1e1f20] rounded-full border border-slate-200 dark:border-[#3c4043] shadow-sm overflow-x-auto no-scrollbar">
+              <div className="flex items-center px-4 border-r border-slate-100 dark:border-[#3c4043] shrink-0">
+                 <span className="text-[10px] font-bold text-slate-400 dark:text-[#8e918f] uppercase flex items-center gap-2 tracking-widest whitespace-nowrap">
+                    <Filter className="w-3 h-3" /> Group
+                 </span>
+              </div>
+              <div className="flex gap-1 p-1">
                  {(['none', 'year', 'promoter', 'country', 'venue'] as const).map(opt => (
                    <button 
                      key={opt}
                      onClick={() => setGroupBy(opt)}
-                     className={`px-3 py-1.5 rounded-lg text-xs font-bold capitalize transition-all whitespace-nowrap ${groupBy === opt ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400' : 'text-slate-500 dark:text-[#c4c7c5] hover:bg-slate-50 dark:hover:bg-[#131314]'}`}
+                     className={`px-3 py-1.5 rounded-full text-xs font-bold capitalize transition-all whitespace-nowrap ${groupBy === opt ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400' : 'text-slate-500 dark:text-[#c4c7c5] hover:bg-slate-50 dark:hover:bg-[#131314]'}`}
                    >
                      {opt}
                    </button>
                  ))}
               </div>
-           </div>
-
-           <div className="flex items-center gap-1 pl-4 border-l border-slate-100 dark:border-[#3c4043] ml-2">
-             <button onClick={() => setViewMode('grid')} className={`p-2 rounded-lg transition-all ${viewMode === 'grid' ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400' : 'text-slate-400 dark:text-[#c4c7c5] hover:bg-slate-50 dark:hover:bg-[#131314]'}`} title="Grid View"><LayoutGrid className="w-4 h-4" /></button>
-             <button onClick={() => setViewMode('list')} className={`p-2 rounded-lg transition-all ${viewMode === 'list' ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400' : 'text-slate-400 dark:text-[#c4c7c5] hover:bg-slate-50 dark:hover:bg-[#131314]'}`} title="List View"><List className="w-4 h-4" /></button>
+              <div className="w-px h-6 bg-slate-100 dark:bg-[#3c4043] mx-1"></div>
+              <div className="flex items-center gap-1 pr-1">
+                 <button onClick={() => setViewMode('grid')} className={`p-2 rounded-full transition-all ${viewMode === 'grid' ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400' : 'text-slate-400 dark:text-[#c4c7c5] hover:bg-slate-50 dark:hover:bg-[#131314]'}`} title="Grid View"><LayoutGrid className="w-4 h-4" /></button>
+                 <button onClick={() => setViewMode('list')} className={`p-2 rounded-full transition-all ${viewMode === 'list' ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400' : 'text-slate-400 dark:text-[#c4c7c5] hover:bg-slate-50 dark:hover:bg-[#131314]'}`} title="List View"><List className="w-4 h-4" /></button>
+              </div>
            </div>
         </div>
 
