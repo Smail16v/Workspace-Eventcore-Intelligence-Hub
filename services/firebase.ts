@@ -1,4 +1,3 @@
-// Modular Firebase services configuration and authentication helpers
 import { initializeApp, getApp, getApps } from 'firebase/app';
 import { 
   getAuth, 
@@ -22,10 +21,7 @@ import {
   onSnapshot, 
   collection, 
   getDocs, 
-  deleteField,
-  query,
-  where,
-  documentId
+  deleteField 
 } from 'firebase/firestore';
 import { 
   getStorage, 
@@ -36,7 +32,6 @@ import {
 } from 'firebase/storage';
 import { UserProfile } from '../types';
 
-// Standard Firebase Configuration
 const firebaseConfig = {
   apiKey: "AIzaSyCJ8ySYbW89WK8GRzJt9aelf-4tmocsdPI",
   authDomain: "eventcore-intelligence-hub.firebaseapp.com",
@@ -48,6 +43,8 @@ const firebaseConfig = {
 
 // Initialize Firebase Modularly
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
+
+// These exports ensure the internal registries for auth, db, and storage are correctly linked to 'app'
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 export const storage = getStorage(app);
@@ -57,7 +54,6 @@ export type User = FirebaseUser;
 export { deleteField };
 
 // --- Authentication Helpers (Modular Adapters) ---
-
 export const onAuthStateChanged = firebaseOnAuthStateChanged;
 export const signInWithCustomToken = firebaseSignInWithCustomToken;
 
@@ -65,7 +61,6 @@ export const registerUser = async (email: string, password: string, fullName: st
   try {
     const userCredential = await createUserWithEmailAndPassword(auth, email, password);
     const user = userCredential.user;
-
     if (user) {
         await setDoc(doc(db, "users", user.uid), {
             uid: user.uid,
@@ -80,10 +75,7 @@ export const registerUser = async (email: string, password: string, fullName: st
     }
     return { success: true };
   } catch (error: any) {
-    if (error.code === 'auth/email-already-in-use') {
-      return { error: "User already exists. Please sign in." };
-    }
-    return { error: error.message };
+    return { error: error.code === 'auth/email-already-in-use' ? "User already exists." : error.message };
   }
 };
 
@@ -92,14 +84,13 @@ export const ensureUserProfileExists = async (user: User) => {
     try {
         const userDocRef = doc(db, "users", user.uid);
         const userSnapshot = await getDoc(userDocRef);
-
         if (!userSnapshot.exists()) {
             await setDoc(userDocRef, {
                 uid: user.uid,
                 email: user.email || "",
                 fullName: user.displayName || "User",
                 companyName: "Unassigned",
-                accessLevel: [], 
+                accessLevel: [],
                 createdAt: Date.now()
             }, { merge: true });
         }
@@ -112,11 +103,7 @@ export const loginUser = async (email: string, password: string) => {
     try {
         const userCredential = await signInWithEmailAndPassword(auth, email, password);
         const user = userCredential.user;
-
-        if (user && !user.emailVerified) {
-            return { unverified: true, email: user.email };
-        }
-
+        if (user && !user.emailVerified) return { unverified: true, email: user.email };
         if (user) await ensureUserProfileExists(user);
         return { success: true };
     } catch (error: any) {
@@ -124,7 +111,6 @@ export const loginUser = async (email: string, password: string) => {
     }
 };
 
-// Added resetPassword helper for password recovery flow
 export const resetPassword = async (email: string) => {
     try {
         await sendPasswordResetEmail(auth, email);
@@ -134,7 +120,6 @@ export const resetPassword = async (email: string) => {
     }
 };
 
-// Added resendVerificationEmail helper for initial account activation
 export const resendVerificationEmail = async () => {
     try {
         const user = auth.currentUser;
@@ -148,9 +133,7 @@ export const resendVerificationEmail = async () => {
     }
 };
 
-export const logoutUser = async () => {
-    await firebaseSignOut(auth);
-};
+export const logoutUser = () => firebaseSignOut(auth);
 
 export const subscribeToUserProfile = (uid: string, callback: (profile: UserProfile | null) => void) => {
     return onSnapshot(doc(db, "users", uid), 
@@ -160,77 +143,45 @@ export const subscribeToUserProfile = (uid: string, callback: (profile: UserProf
 };
 
 export const updateUserProfile = async (uid: string, data: Partial<UserProfile>) => {
-    const userDocRef = doc(db, "users", uid);
-    await updateDoc(userDocRef, data);
+    await updateDoc(doc(db, "users", uid), data);
+};
+
+export const fetchAllUsers = async (): Promise<UserProfile[]> => {
+    const snapshot = await getDocs(collection(db, "users"));
+    return snapshot.docs.map(doc => doc.data() as UserProfile);
+};
+
+export const updateUserAccess = async (uid: string, accessLevel: 'all' | string[]) => {
+    await updateDoc(doc(db, "users", uid), { accessLevel });
 };
 
 export const deleteUserAccount = async () => {
     const user = auth.currentUser;
-    if (!user) return;
-    try {
+    if (user) {
         await deleteDoc(doc(db, "users", user.uid));
         await firebaseDeleteUser(user);
-    } catch (error) {
-        console.error("Error deleting account:", error);
-        throw error;
     }
 };
 
-export const fetchAllUsers = async (): Promise<UserProfile[]> => {
-  const usersRef = collection(db, "users");
-  const snapshot = await getDocs(usersRef);
-  return snapshot.docs.map(doc => doc.data() as UserProfile);
-};
-
-export const updateUserAccess = async (uid: string, newAccess: 'all' | string[]) => {
-  const userDocRef = doc(db, "users", uid);
-  await updateDoc(userDocRef, { accessLevel: newAccess });
-};
-
-export const uploadProjectFile = (
-  projectId: string, 
-  file: File, 
-  type: 'schema' | 'responses',
-  onProgress?: (progress: number) => void
-): Promise<string> => {
+export const uploadProjectFile = (projectId: string, file: File, type: 'schema' | 'responses', onProgress?: (p: number) => void): Promise<string> => {
     return new Promise((resolve, reject) => {
         const storageRef = ref(storage, `project_CSVs/${projectId}/${type}.csv`);
         const uploadTask = uploadBytesResumable(storageRef, file);
-
         uploadTask.on('state_changed', 
-            (snapshot) => {
-                const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-                if (onProgress) onProgress(progress);
-            },
+            (s) => onProgress?.((s.bytesTransferred / s.totalBytes) * 100),
             reject,
-            async () => {
-                const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
-                resolve(downloadURL);
-            }
+            async () => resolve(await getDownloadURL(uploadTask.snapshot.ref))
         );
     });
 };
 
-export const uploadProjectLogo = (
-    projectId: string, 
-    file: File,
-    onProgress?: (progress: number) => void
-): Promise<string> => {
+export const uploadProjectLogo = (projectId: string, file: File, onProgress?: (p: number) => void): Promise<string> => {
     return new Promise((resolve, reject) => {
         const ext = file.name.split('.').pop() || 'png';
         const storageRef = ref(storage, `project_assets/${projectId}/logo.${ext}`);
         const uploadTask = uploadBytesResumable(storageRef, file);
-
-        uploadTask.on('state_changed', 
-            (snapshot) => {
-                const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-                if (onProgress) onProgress(progress);
-            },
-            reject,
-            async () => {
-                const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
-                resolve(downloadURL);
-            }
+        uploadTask.on('state_changed', (s) => onProgress?.((s.bytesTransferred / s.totalBytes) * 100), reject,
+            async () => resolve(await getDownloadURL(uploadTask.snapshot.ref))
         );
     });
 };
@@ -240,6 +191,4 @@ export const deleteProjectFile = async (projectId: string, type: 'schema' | 'res
     try { await deleteObject(storageRef); } catch (e) {}
 };
 
-export const deleteProject = async (projectId: string) => {
-    await deleteDoc(doc(db, "projects", projectId));
-};
+export const deleteProject = (projectId: string) => deleteDoc(doc(db, 'projects', projectId));
