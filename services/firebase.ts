@@ -41,21 +41,20 @@ const firebaseConfig = {
   appId: "1:166550528716:web:0560e89cfd4b8e2165d869"
 };
 
-// Initialize Firebase Modularly
+// Standard Modular Initialization
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 
-// These exports ensure the internal registries for auth, db, and storage are correctly linked to 'app'
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 export const storage = getStorage(app);
-export const appId = typeof window.__app_id !== 'undefined' ? window.__app_id : 'eventcore-workspace';
 
 export type User = FirebaseUser;
 export { deleteField };
 
-// --- Authentication Helpers (Modular Adapters) ---
+// --- Authentication Helpers ---
 export const onAuthStateChanged = firebaseOnAuthStateChanged;
 export const signInWithCustomToken = firebaseSignInWithCustomToken;
+export const logoutUser = () => firebaseSignOut(auth);
 
 export const registerUser = async (email: string, password: string, fullName: string, company: string) => {
   try {
@@ -132,8 +131,6 @@ export const resendVerificationEmail = async () => {
         return { error: error.message };
     }
 };
-
-export const logoutUser = () => firebaseSignOut(auth);
 
 export const subscribeToUserProfile = (uid: string, callback: (profile: UserProfile | null) => void) => {
     return onSnapshot(doc(db, "users", uid), 

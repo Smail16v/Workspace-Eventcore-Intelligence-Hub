@@ -1,8 +1,5 @@
 // AI services for semantic scoring and text analysis
-import { GoogleGenAI } from "@google/genai";
-
-// Initialize AI client using environment variable strictly
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+import { GoogleGenAI, Type } from "@google/genai";
 
 export interface TextAnalysisResult {
     type: 'themes' | 'summary';
@@ -17,18 +14,33 @@ export interface GeoCoordinate {
 
 export const getSemanticValues = async (question: string, options: string[]): Promise<Record<string, number> | null> => {
     if (!process.env.API_KEY) return null;
+    // Fix: Instantiate GoogleGenAI within the function for up-to-date API key access
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     try {
         const prompt = `Analyze if these survey options represent a numeric/satisfaction scale. Return JSON: { "mappings": { "Label": value }, "isScale": boolean }. Input: "${question}", Options: ${JSON.stringify(options)}`;
         
         // Use gemini-3-flash-preview for scale detection
+        // Fix: Use responseSchema as the recommended way to get structured JSON
         const response = await ai.models.generateContent({
             model: 'gemini-3-flash-preview',
             contents: prompt,
             config: {
-                responseMimeType: 'application/json'
+                responseMimeType: 'application/json',
+                responseSchema: {
+                    type: Type.OBJECT,
+                    properties: {
+                        mappings: {
+                            type: Type.OBJECT,
+                            additionalProperties: { type: Type.NUMBER }
+                        },
+                        isScale: { type: Type.BOOLEAN }
+                    },
+                    required: ["mappings", "isScale"]
+                }
             }
         });
         
+        // Fix: Use .text property to get response string
         const data = JSON.parse(response.text || '{}');
         return data.isScale ? data.mappings : null;
     } catch (e) {
@@ -39,6 +51,8 @@ export const getSemanticValues = async (question: string, options: string[]): Pr
 
 export const analyzeTextResponses = async (question: string, responses: string[], choices?: string[]): Promise<TextAnalysisResult | null> => {
     if (!process.env.API_KEY || responses.length === 0) return null;
+    // Fix: Instantiate GoogleGenAI within the function
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     
     // Sample if too large to save tokens/latency
     const sample = responses.slice(0, 150).filter(r => r.length > 2);
@@ -56,7 +70,27 @@ export const analyzeTextResponses = async (question: string, responses: string[]
         const response = await ai.models.generateContent({
             model: 'gemini-3-flash-preview',
             contents: prompt,
-            config: { responseMimeType: 'application/json' }
+            config: { 
+                responseMimeType: 'application/json',
+                responseSchema: {
+                    type: Type.OBJECT,
+                    properties: {
+                        themes: {
+                            type: Type.ARRAY,
+                            items: {
+                                type: Type.OBJECT,
+                                properties: {
+                                    theme: { type: Type.STRING },
+                                    count: { type: Type.NUMBER }
+                                },
+                                required: ["theme", "count"]
+                            }
+                        },
+                        summary: { type: Type.STRING }
+                    },
+                    required: ["themes", "summary"]
+                }
+            }
         });
         
         const data = JSON.parse(response.text || '{}');
@@ -77,6 +111,8 @@ export const analyzeZipCodes = async (text: string, responses: string[], choices
 
 export const resolveLocations = async (zips: string[]): Promise<Record<string, string>> => {
     if (!process.env.API_KEY || zips.length === 0) return {};
+    // Fix: Instantiate GoogleGenAI within the function
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     
     try {
         const uniqueZips = [...new Set(zips)].slice(0, 20); // Limit to batch of 20
@@ -89,7 +125,13 @@ export const resolveLocations = async (zips: string[]): Promise<Record<string, s
         const response = await ai.models.generateContent({
             model: 'gemini-3-flash-preview',
             contents: prompt,
-            config: { responseMimeType: 'application/json' }
+            config: { 
+                responseMimeType: 'application/json',
+                responseSchema: {
+                    type: Type.OBJECT,
+                    additionalProperties: { type: Type.STRING }
+                }
+            }
         });
         
         return JSON.parse(response.text || '{}');
@@ -100,6 +142,8 @@ export const resolveLocations = async (zips: string[]): Promise<Record<string, s
 
 export const getGeoCoordinates = async (labels: string[]): Promise<Record<string, GeoCoordinate>> => {
     if (!process.env.API_KEY || labels.length === 0) return {};
+    // Fix: Instantiate GoogleGenAI within the function
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     
     try {
         const uniqueLabels = [...new Set(labels)].slice(0, 50);
@@ -112,7 +156,20 @@ export const getGeoCoordinates = async (labels: string[]): Promise<Record<string
         const response = await ai.models.generateContent({
             model: 'gemini-3-flash-preview',
             contents: prompt,
-            config: { responseMimeType: 'application/json' }
+            config: { 
+                responseMimeType: 'application/json',
+                responseSchema: {
+                    type: Type.OBJECT,
+                    additionalProperties: {
+                        type: Type.OBJECT,
+                        properties: {
+                            lat: { type: Type.NUMBER },
+                            lon: { type: Type.NUMBER }
+                        },
+                        required: ["lat", "lon"]
+                    }
+                }
+            }
         });
         
         return JSON.parse(response.text || '{}');

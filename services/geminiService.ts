@@ -1,9 +1,6 @@
 // Gemini service for event context analysis and prize extraction
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenAI, Type } from "@google/genai";
 import { Project } from "../types";
-
-// Initialize AI client using environment variable strictly
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 export async function analyzeEventContext(textOrUrl: string): Promise<Partial<Project>> {
   // If no API key is available, fallback to mock data immediately
@@ -20,6 +17,9 @@ export async function analyzeEventContext(textOrUrl: string): Promise<Partial<Pr
         logoUrl: ""
     };
   }
+
+  // Fix: Move GoogleGenAI instance creation inside the function to ensure the most up-to-date API key is used
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
   try {
     const prompt = `
@@ -42,15 +42,30 @@ export async function analyzeEventContext(textOrUrl: string): Promise<Partial<Pr
     `;
 
     // Use gemini-3-pro-preview for complex reasoning tasks requiring search tools
+    // Fix: Added responseSchema for more robust JSON output as recommended in guidelines
     const response = await ai.models.generateContent({
       model: 'gemini-3-pro-preview',
       contents: { parts: [{ text: prompt }] },
       config: {
         tools: [{ googleSearch: {} }], // Enable Google Search Grounding
-        responseMimeType: "application/json"
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            name: { type: Type.STRING },
+            venue: { type: Type.STRING },
+            location: { type: Type.STRING },
+            dates: { type: Type.STRING },
+            year: { type: Type.STRING },
+            promoter: { type: Type.STRING },
+            domainHint: { type: Type.STRING }
+          },
+          required: ["name", "venue", "location", "dates", "year", "promoter"]
+        }
       }
     });
 
+    // Fix: Solely use the .text property to access the generated content
     const data = JSON.parse(response.text || '{}');
 
     return {
@@ -85,6 +100,9 @@ export async function analyzeEventContext(textOrUrl: string): Promise<Partial<Pr
 export async function extractPrizeInfo(schemaRows: any[]): Promise<string> {
   if (!process.env.API_KEY || !schemaRows.length) return "";
 
+  // Fix: Move GoogleGenAI instance creation inside the function
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+
   // Scan up to 10,000 characters to catch prizes at the bottom of long CSVs
   const textBlob = schemaRows
     .map(r => r.QText || r['Question Text'] || "")
@@ -106,6 +124,7 @@ export async function extractPrizeInfo(schemaRows: any[]): Promise<string> {
         model: 'gemini-3-flash-preview', 
         contents: prompt
     });
+    // Fix: Access response text via .text property
     return result.text ? result.text.trim().replace(/[".]/g, '') : "No prize";
   } catch (e) {
     console.error("Prize extraction failed", e);
