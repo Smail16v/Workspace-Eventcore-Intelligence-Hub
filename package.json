@@ -13,11 +13,11 @@
     "react-dom": "18.2.0",
     "@google/genai": "^1.34.0",
     "lucide-react": "^0.460.0",
-    "firebase": "^10.7.0",
     "jszip": "3.10.1",
     "papaparse": "5.4.1",
     "recharts": "2.12.7",
-    "highcharts": "^12.4.0"
+    "highcharts": "^12.4.0",
+    "firebase": "^12.7.0"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",

@@ -1,25 +1,13 @@
-
+// Gemini service for event context analysis and prize extraction
 import { GoogleGenAI } from "@google/genai";
 import { Project } from "../types";
 
-// Initialize AI client safely
-const getApiKey = () => {
-  try {
-    if (typeof process !== 'undefined' && process.env?.API_KEY) return process.env.API_KEY;
-    // @ts-ignore
-    if (typeof import.meta !== 'undefined' && import.meta.env?.VITE_GEMINI_API_KEY) return import.meta.env.VITE_GEMINI_API_KEY;
-  } catch (e) {
-    return '';
-  }
-  return '';
-};
-
-const apiKey = getApiKey();
-const ai = apiKey ? new GoogleGenAI({ apiKey }) : null;
+// Initialize AI client using environment variable strictly
+const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
 
 export async function analyzeEventContext(textOrUrl: string): Promise<Partial<Project>> {
   // If no API key is available, fallback to mock data immediately
-  if (!ai) {
+  if (!process.env.API_KEY) {
     console.warn("Gemini API Key missing. Returning mock data.");
     await new Promise(r => setTimeout(r, 800)); // Simulate network delay
     return {
@@ -43,7 +31,7 @@ export async function analyzeEventContext(textOrUrl: string): Promise<Partial<Pr
       1. Extract the official name, venue, location, dates, year, and promoter.
       2. If the input is a filename like "Q_USOpen.csv", infer "US Open" and search for that.
       3. Identify the main domain name (domainHint) to be used for logo lookup.
-      4. Return a strictly valid JSON object with the following keys:
+      4. Return a JSON object with the following keys:
          - name (string)
          - venue (string)
          - location (string): City, State, Country
@@ -51,36 +39,19 @@ export async function analyzeEventContext(textOrUrl: string): Promise<Partial<Pr
          - year (string)
          - promoter (string)
          - domainHint (string): e.g. "usopen.org"
-      5. Do not include markdown formatting or code blocks. Just the raw JSON string.
     `;
 
+    // Use gemini-3-pro-preview for complex reasoning tasks requiring search tools
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash-preview-09-2025',
+      model: 'gemini-3-pro-preview',
       contents: { parts: [{ text: prompt }] },
       config: {
         tools: [{ googleSearch: {} }], // Enable Google Search Grounding
+        responseMimeType: "application/json"
       }
     });
 
-    let text = response.text || "{}";
-
-    // Clean up potential markdown code blocks if the model ignores the "no markdown" instruction
-    text = text.replace(/```json\n?/g, '').replace(/```/g, '').trim();
-    
-    // Robust extraction: find the first '{' and last '}'
-    const firstBrace = text.indexOf('{');
-    const lastBrace = text.lastIndexOf('}');
-    if (firstBrace !== -1 && lastBrace !== -1) {
-        text = text.substring(firstBrace, lastBrace + 1);
-    }
-
-    let data: any = {};
-    try {
-        data = JSON.parse(text);
-    } catch (e) {
-        console.error("Failed to parse Gemini JSON response", text);
-        // Fallback to empty object to allow manual entry
-    }
+    const data = JSON.parse(response.text || '{}');
 
     return {
       name: data.name || '',
@@ -95,7 +66,7 @@ export async function analyzeEventContext(textOrUrl: string): Promise<Partial<Pr
   } catch (error) {
     console.error("Gemini Analysis Error:", error);
     
-    // Fallback logic for specific known test cases if AI fails or key is missing
+    // Fallback logic for specific known test cases if AI fails
     if (textOrUrl.toLowerCase().includes('vancouver')) {
         return {
           name: "Vancouver Christmas Market",
@@ -112,7 +83,7 @@ export async function analyzeEventContext(textOrUrl: string): Promise<Partial<Pr
 }
 
 export async function extractPrizeInfo(schemaRows: any[]): Promise<string> {
-  if (!ai || !schemaRows.length) return "";
+  if (!process.env.API_KEY || !schemaRows.length) return "";
 
   // Scan up to 10,000 characters to catch prizes at the bottom of long CSVs
   const textBlob = schemaRows
@@ -130,8 +101,9 @@ export async function extractPrizeInfo(schemaRows: any[]): Promise<string> {
   `;
 
   try {
+    // Use gemini-3-flash-preview for efficient text summarization and extraction
     const result = await ai.models.generateContent({
-        model: 'gemini-2.5-flash-preview-09-2025', 
+        model: 'gemini-3-flash-preview', 
         contents: prompt
     });
     return result.text ? result.text.trim().replace(/[".]/g, '') : "No prize";
