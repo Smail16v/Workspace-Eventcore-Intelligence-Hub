@@ -9,8 +9,11 @@ import {
   Search, 
   AlertTriangle, 
   RefreshCcw, 
-  FileText 
+  FileText,
+  Download
 } from 'lucide-react';
+// @ts-ignore
+import html2pdf from 'html2pdf.js';
 import { Project, QuestionDef, SurveyResponse, FilterState, DashboardViewMode } from '../types';
 import { parseSchemaCsv, parseResponsesCsv, normalizeData, filterData, formatDisplayId } from '../services/parser';
 import { QuestionCard } from './QuestionCard';
@@ -34,6 +37,14 @@ const ProjectDashboard: React.FC<ProjectDashboardProps> = ({ project, onBack, re
   const [cardViewMode, setCardViewMode] = useState<'chart' | 'table'>('table');
   const [searchQuery, setSearchQuery] = useState('');
   const [surveyTitle, setSurveyTitle] = useState(project.name);
+
+  // RESTORED: Dynamic Branding Logic
+  const branding = useMemo(() => {
+    const name = project.name.toLowerCase();
+    if (name.includes('fedex')) return { icon: 'text-purple-600', accent: 'bg-purple-600', border: 'border-purple-200' };
+    if (name.includes('players')) return { icon: 'text-yellow-600', accent: 'bg-yellow-600', border: 'border-yellow-200' };
+    return { icon: 'text-blue-600', accent: 'bg-blue-600', border: 'border-blue-200' };
+  }, [project.name]);
 
   useEffect(() => {
     let isMounted = true;
@@ -74,7 +85,7 @@ const ProjectDashboard: React.FC<ProjectDashboardProps> = ({ project, onBack, re
     return questions.filter(q => q.id.toLowerCase().includes(term) || q.text.toLowerCase().includes(term));
   }, [questions, searchQuery]);
 
-  // PII-Scrubbed Data Processor
+  // RESTORED: PII-Scrubbed Data Processor
   const rawTableData = useMemo(() => {
     if (filteredData.length === 0) return { headers: [], rows: [] };
     const metadataHeaders = ['ResponseId', 'StartDate', 'Duration (in seconds)', 'Finished'];
@@ -98,6 +109,23 @@ const ProjectDashboard: React.FC<ProjectDashboardProps> = ({ project, onBack, re
     });
   };
 
+  // RESTORED: Advanced Paginated PDF Export
+  const handleExportPdf = () => {
+    const element = document.getElementById('dashboard-content');
+    if (!element) return;
+    
+    const opt = { 
+      margin: 10, 
+      filename: `${project.name}_Report.pdf`, 
+      image: { type: 'jpeg', quality: 0.98 },
+      html2canvas: { scale: 2, useCORS: true, logging: false }, 
+      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+      pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
+    };
+    
+    html2pdf().set(opt).from(element).save();
+  };
+
   if (loading) return (
     <div className="h-screen bg-[#131314] flex flex-col items-center justify-center text-blue-500 gap-4">
       <Loader2 className="w-10 h-10 animate-spin" />
@@ -115,11 +143,11 @@ const ProjectDashboard: React.FC<ProjectDashboardProps> = ({ project, onBack, re
 
   return (
     <div className="flex h-screen bg-[#E5E5E6] dark:bg-[#131314] overflow-hidden transition-colors">
-      {/* SIDEBAR NAVIGATOR */}
+      {/* RESTORED SIDEBAR NAVIGATOR */}
       <aside className="w-64 bg-white dark:bg-[#1e1f20] border-r border-slate-200 dark:border-[#3c4043] flex flex-col hidden lg:flex shrink-0 no-print">
         <div className="p-6 border-b border-slate-100 dark:border-[#3c4043]">
-          <img src={project.logoUrl || "https://picsum.photos/150/150"} className="h-10 mb-4 object-contain mx-auto" />
-          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4">Question Navigator</p>
+          <img src={project.logoUrl || "https://picsum.photos/150/150"} className="h-10 mb-4 object-contain mx-auto" alt="Logo" />
+          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4">Question Index</p>
           <div className="relative">
               <Search className="w-3 h-3 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
               <input 
@@ -136,9 +164,9 @@ const ProjectDashboard: React.FC<ProjectDashboardProps> = ({ project, onBack, re
             <button 
               key={q.id} 
               onClick={() => document.getElementById(`q-${q.id}`)?.scrollIntoView({ behavior: 'smooth' })} 
-              className="w-full text-left p-2.5 rounded-xl hover:bg-slate-50 dark:hover:bg-[#3c4043] text-[11px] transition-all group border border-transparent"
+              className="w-full text-left p-2.5 rounded-xl hover:bg-slate-50 dark:hover:bg-[#3c4043] text-[11px] transition-all group border border-transparent truncate"
             >
-              <span className="font-bold text-blue-600 dark:text-blue-400 mr-2">{formatDisplayId(q.id)}</span>
+              <span className={`font-bold mr-2 ${branding.icon}`}>{formatDisplayId(q.id)}</span>
               <span className="text-slate-500 dark:text-slate-400 truncate block group-hover:text-slate-900 dark:group-hover:text-white transition-colors">{q.text}</span>
             </button>
           ))}
@@ -174,12 +202,19 @@ const ProjectDashboard: React.FC<ProjectDashboardProps> = ({ project, onBack, re
                   <button onClick={() => setCardViewMode('table')} className={`p-1.5 rounded-lg ${cardViewMode === 'table' ? 'bg-white dark:bg-[#3c4043] shadow-sm text-blue-600' : 'text-slate-400'}`}><TableIcon className="w-4 h-4" /></button>
                 </div>
              )}
-             <button onClick={() => window.print()} className="p-2 text-slate-400 hover:text-blue-600 dark:hover:text-blue-400"><Printer className="w-4 h-4" /></button>
+             <div className="flex items-center gap-2">
+                <button onClick={handleExportPdf} className="p-2 text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors" title="Export to PDF">
+                  <Download className="w-4 h-4" />
+                </button>
+                <button onClick={() => window.print()} className="p-2 text-slate-400 hover:text-blue-600 dark:hover:text-blue-400" title="Print Report">
+                  <Printer className="w-4 h-4" />
+                </button>
+             </div>
           </div>
         </header>
 
         {/* CONTENT RENDERER */}
-        <div className="flex-1 overflow-y-auto p-10 space-y-8 custom-scrollbar">
+        <div id="dashboard-content" className="flex-1 overflow-y-auto p-10 space-y-8 custom-scrollbar bg-[#E5E5E6] dark:bg-[#131314]">
           {view === 'topline' ? (
             <div className="max-w-5xl mx-auto space-y-8">
               <ToplineSummary 
@@ -195,7 +230,7 @@ const ProjectDashboard: React.FC<ProjectDashboardProps> = ({ project, onBack, re
                 activeFilters={filters}
               />
               {displayedQuestions.map(q => (
-                <div key={q.id} id={`q-${q.id}`} className="scroll-mt-24">
+                <div key={q.id} id={`q-${q.id}`} className="scroll-mt-24 break-inside-avoid">
                   <QuestionCard question={q} data={filteredData} activeFilters={filters[q.id] || []} onToggleFilter={(val) => handleToggleFilter(q.id, val)} allQuestions={questions} defaultViewMode={cardViewMode} />
                 </div>
               ))}

@@ -3,7 +3,7 @@ import { GoogleGenAI } from "@google/genai";
 import { Project } from "../types";
 
 // Initialize AI client using environment variable strictly
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
+const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 export async function analyzeEventContext(textOrUrl: string): Promise<Partial<Project>> {
   // If no API key is available, fallback to mock data immediately

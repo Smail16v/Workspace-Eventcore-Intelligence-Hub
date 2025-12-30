@@ -2,7 +2,7 @@
 import { GoogleGenAI } from "@google/genai";
 
 // Initialize AI client using environment variable strictly
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
+const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 export interface TextAnalysisResult {
     type: 'themes' | 'summary';
